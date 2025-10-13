@@ -1,0 +1,17 @@
+# HARDWARE.TXT
+#
+# Ultra Motion
+# Servo Cylinder
+# FW: CAN v1.03
+#
+rotor=234
+encRef=40239866
+rPos=1024
+ePos=15400
+sType=255
+qP=2000
+qI=200
+dP=2000
+dI=200
+sNum="10116998"
+pNum="A1CZ9A"

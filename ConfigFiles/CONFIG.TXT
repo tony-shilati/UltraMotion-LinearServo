@@ -1,0 +1,47 @@
+# CONFIG.TXT
+#
+# Ultra Motion
+# Servo Cylinder
+# FW: CAN v1.03
+#
+opMode=1
+cliMode=1
+cliBaud=115200
+kp=1200
+ki=250000
+kd=10000
+spMin=2048
+spMax=14376
+maxTorq=10000
+maxSpeed=1500000
+accel=5000
+CANspd=0
+CANext=0
+unitID=3
+IDmask=0
+rxData="<>"
+pMin=0
+pMax=65535
+sigInv=0
+SUact=0
+defPos=8212
+inEna=7
+intvl=50
+rxTO=1250
+TOact=0
+txEna=7
+txIvl=1000
+txData="KLMGHEFY"
+txID=127
+heatEna=7
+heatTmp=-20.00
+heatCur=5000
+fErrWin=512
+fErrTime=100
+posWin=5
+posTime=10
+ovTorq=8200
+stSpeed=2
+ovTemp=40.00
+unTemp=-40.00
+ovHumid=95.00
