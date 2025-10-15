@@ -1,6 +1,5 @@
 #include <FlexCAN_T4.h>
-#include <math.h>
-#define SEND_EXAMPLE
+#include <stdlib.h>
 // Use CAN3 interface for the 3rd CAN bus on Teensy 4.1
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 
@@ -42,37 +41,41 @@ void loop() {
     printMessage(msg);
   }
 
-  // Optional: example transmitter (enable by defining SEND_EXAMPLE)
-#ifdef SEND_EXAMPLE
-  static uint32_t lastMillis = 0;
-  const uint32_t sendIntervalMs = 100; // send every 100 ms
-  if (millis() - lastMillis >= sendIntervalMs) {
-    lastMillis = millis();
-    // Oscillate between 3500 and 4500 at 0.1 Hz (period = 10 s)
-    float t = millis() / 1000.0f; // seconds
-    const float freq = 0.5f; // Hz
-    const float amplitude = 4000.0f; // half-range (4500-3500)/2
-    const float center = 8212.0f;
-    float value = center + amplitude * sinf(2.0f * M_PI * freq * t);
-    uint16_t number = (uint16_t)roundf(value);
-
-    CAN_message_t tx;
-    tx.id = 0x3;
-    tx.len = 2; // Sending 2 bytes
-    tx.buf[0] = number & 0xFF;        // Low byte
-    tx.buf[1] = (number >> 8) & 0xFF; // High byte
-    can3.write(tx);
-
-    Serial.print("Sent value: ");
-    Serial.print(number);
-    Serial.print("  bytes: ");
-    if (tx.buf[0] < 0x10) Serial.print('0');
-    Serial.print(tx.buf[0], HEX);
-    Serial.print(" ");
-    if (tx.buf[1] < 0x10) Serial.print('0');
-    Serial.println(tx.buf[1], HEX);
+  // Read numeric input lines from Serial (USB) and transmit to CAN3.
+  // Expected input: a decimal integer per line, e.g. "3750\n".
+  static char inBuf[64];
+  static size_t inIdx = 0;
+  while (Serial.available()) {
+    int c = Serial.read();
+    if (c < 0) continue;
+    if (c == '\r') continue;
+    if (c == '\n' || inIdx >= (sizeof(inBuf) - 1)) {
+      // terminate
+      inBuf[inIdx] = '\0';
+      if (inIdx > 0) {
+        // parse number
+        char *endp = NULL;
+        long val = strtol(inBuf, &endp, 10);
+        if (endp == inBuf) {
+          Serial.print("Invalid number: ");
+          Serial.println(inBuf);
+        } else {
+          uint16_t number = (uint16_t)val;
+          CAN_message_t tx;
+          tx.id = 0x3;
+          tx.len = 2;
+          tx.buf[0] = number & 0xFF;
+          tx.buf[1] = (number >> 8) & 0xFF;
+          can3.write(tx);
+          Serial.print("Transmitted: ");
+          Serial.println(number);
+        }
+      }
+      inIdx = 0;
+    } else {
+      inBuf[inIdx++] = (char)c;
+    }
   }
-#endif
 
   // small delay for background tasks
   delay(4);
