@@ -50,7 +50,7 @@ void loop() {
     lastMillis = millis();
     // Oscillate between 3500 and 4500 at 0.1 Hz (period = 10 s)
     float t = millis() / 1000.0f; // seconds
-    const float freq = 0.1f; // Hz
+    const float freq = 0.5f; // Hz
     const float amplitude = 4000.0f; // half-range (4500-3500)/2
     const float center = 8212.0f;
     float value = center + amplitude * sinf(2.0f * M_PI * freq * t);
@@ -75,5 +75,5 @@ void loop() {
 #endif
 
   // small delay for background tasks
-  delay(50);
+  delay(4);
 }
