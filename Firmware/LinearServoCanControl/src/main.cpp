@@ -4,6 +4,8 @@
 // Use CAN3 interface for the 3rd CAN bus on Teensy 4.1
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 
+uint16_t number;
+
 void printMessage(const CAN_message_t &m) {
   // print timestamp, ID, type, len and data
   Serial.print(millis());
@@ -32,6 +34,7 @@ void setup() {
   
   can3.begin();
   can3.setBaudRate(1000000); // 1 Mbps
+
 }
 
 void loop() {
@@ -45,16 +48,16 @@ void loop() {
   // Optional: example transmitter (enable by defining SEND_EXAMPLE)
 #ifdef SEND_EXAMPLE
   static uint32_t lastMillis = 0;
-  const uint32_t sendIntervalMs = 100; // send every 100 ms
+  const uint32_t sendIntervalMs = 1; // send every 100 ms
   if (millis() - lastMillis >= sendIntervalMs) {
     lastMillis = millis();
     // Oscillate between 3500 and 4500 at 0.1 Hz (period = 10 s)
     float t = millis() / 1000.0f; // seconds
-    const float freq = 0.5f; // Hz
-    const float amplitude = 4000.0f; // half-range (4500-3500)/2
+    const float freq = 5.0f; // Hz
+    const float amplitude = 1500.0f; // half-range (4500-3500)/2
     const float center = 8212.0f;
     float value = center + amplitude * sinf(2.0f * M_PI * freq * t);
-    uint16_t number = (uint16_t)roundf(value);
+    number = (uint16_t)roundf(value);
 
     CAN_message_t tx;
     tx.id = 0x3;
@@ -74,6 +77,4 @@ void loop() {
   }
 #endif
 
-  // small delay for background tasks
-  delay(4);
 }
