@@ -48,13 +48,14 @@ void loop() {
   // Optional: example transmitter (enable by defining SEND_EXAMPLE)
 #ifdef SEND_EXAMPLE
   static uint32_t lastMillis = 0;
-  const uint32_t sendIntervalMs = 1; // send every 100 ms
+  const uint32_t sendIntervalMs = 1; // Send period
+
   if (millis() - lastMillis >= sendIntervalMs) {
     lastMillis = millis();
-    // Oscillate between 3500 and 4500 at 0.1 Hz (period = 10 s)
+
     float t = millis() / 1000.0f; // seconds
     const float freq = 5.0f; // Hz
-    const float amplitude = 1500.0f; // half-range (4500-3500)/2
+    const float amplitude = 1500.0f;
     const float center = 8212.0f;
     float value = center + amplitude * sinf(2.0f * M_PI * freq * t);
     number = (uint16_t)roundf(value);
