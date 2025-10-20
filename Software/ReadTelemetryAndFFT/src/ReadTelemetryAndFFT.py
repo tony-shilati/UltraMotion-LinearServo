@@ -8,10 +8,12 @@ from datetime import datetime
 import csv
 import os
 import sys
+import pickle
 
 ## Define a timeout to be 1 second
 SERIAL_TIMEOUT = 1.0
 BAUD_RATE = 115200
+MAX_FREQUENCY = 3
 
 def find_teensy_port():
     """Find the Teensy serial port automatically"""
@@ -144,18 +146,18 @@ def perform_fft_and_plot(times, positions, csv_filename):
     frequencies = fft_freq[positive_freq_idx]
     magnitudes = np.abs(fft_vals[positive_freq_idx]) / N  # Normalize
     
-    # Filter to 0-25 Hz range
-    freq_mask = (frequencies >= 0) & (frequencies <= 25)
+    # Filter to 0-MAX_FREQUENCY Hz range
+    freq_mask = (frequencies >= 0) & (frequencies <= MAX_FREQUENCY)
     frequencies_plot = frequencies[freq_mask]
     magnitudes_plot = magnitudes[freq_mask]
     
     ## The plot is saved as a date and timestamped file in ../outputs
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = os.path.dirname(csv_filename)
-    plot_filename = os.path.join(output_dir, f"fft_plot_{timestamp}.png")
+    plot_filename = os.path.join(output_dir, f"fft_plot_{timestamp}.fig.pkl")
     
     # Create plot
-    plt.figure(figsize=(12, 8))
+    fig = plt.figure(figsize=(12, 8))
     
     # Subplot 1: Time domain
     plt.subplot(2, 1, 1)
@@ -171,13 +173,17 @@ def perform_fft_and_plot(times, positions, csv_filename):
     plt.xlabel('Frequency (Hz)')
     plt.ylabel('Magnitude')
     plt.title('FFT: Frequency Spectrum (0-25 Hz)')
-    plt.xlim(0, 25)
-    plt.xticks(range(0, 26, 1))  # Ticks at each integer frequency from 0 to 25
+    plt.xlim(0, MAX_FREQUENCY)
+    # Compute tick positions (use 6 ticks from 0 to MAX_FREQUENCY to avoid non-integer step errors)
+    ticks = np.linspace(0, MAX_FREQUENCY, 6)
+    plt.xticks(ticks)  # Ticks from 0 to MAX_FREQUENCY inclusive
     plt.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig(plot_filename, dpi=150)
-    print(f"Plot saved to: {plot_filename}")
+    # Save the Matplotlib Figure object as a pickle so it can be reloaded later
+    with open(plot_filename, 'wb') as f:
+        pickle.dump(fig, f)
+    print(f"Matplotlib figure saved to: {plot_filename}")
     
     # Show plot
     plt.show()

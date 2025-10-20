@@ -1,7 +1,7 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
 #define SEND_EXAMPLE
-#define FREQUENCY 20.0f
+#define FREQUENCY 1.0f
 // Use CAN3 interface for the 3rd CAN bus on Teensy 4.1
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 
