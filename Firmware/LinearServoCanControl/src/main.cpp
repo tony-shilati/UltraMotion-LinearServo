@@ -1,7 +1,7 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
 #define SEND_EXAMPLE
-#define FREQUENCY 15.0f
+#define FREQUENCY 20.0f
 // Use CAN3 interface for the 3rd CAN bus on Teensy 4.1
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 
@@ -17,7 +17,7 @@ void printMessage(const CAN_message_t &m) {
     uint16_t value = (uint16_t)m.buf[0] | ((uint16_t)m.buf[1] << 8); // low byte first
     Serial.print(value);           // decimal
     Serial.print(", ");
-    Serial.println((micros() - start_micros)/1000000.0f);
+    Serial.println((micros() - start_micros)/1000000.0f, 4);
   } else {
     Serial.println("  (not enough data for 16-bit)");
   }
