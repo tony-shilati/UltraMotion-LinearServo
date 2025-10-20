@@ -1,43 +1,50 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
 #define SEND_EXAMPLE
+#define FREQUENCY 15.0f
 // Use CAN3 interface for the 3rd CAN bus on Teensy 4.1
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 
 uint16_t number;
+unsigned long start;
+unsigned long start_micros;
+unsigned long time_limit = 10 * 1000;
 
 void printMessage(const CAN_message_t &m) {
-  // print timestamp, ID, type, len and data
-  Serial.print(millis());
-  Serial.print(" ms  ");
-  Serial.print("ID: 0x");
-  Serial.print(m.id, HEX);
-  Serial.print("  len:");
-  Serial.print(m.len);
-  Serial.print("  data:");
-  for (uint8_t i = 0; i < m.len && i < 8; ++i) {
-    if (m.buf[i] < 0x10) Serial.print('0');
-    Serial.print(m.buf[i], HEX);
-    Serial.print(' ');
+  // print telemetry data and timestamp
+
+  if (m.len >= 2) {
+    uint16_t value = (uint16_t)m.buf[0] | ((uint16_t)m.buf[1] << 8); // low byte first
+    Serial.print(value);           // decimal
+    Serial.print(", ");
+    Serial.println((micros() - start_micros)/1000000.0f);
+  } else {
+    Serial.println("  (not enough data for 16-bit)");
   }
-  Serial.println();
 }
 
 void setup() {
   Serial.begin(115200);
-  // give USB serial a moment to start
-  unsigned long start = millis();
-  while (!Serial && (millis() - start) < 2000) {
+  while (!Serial) {
     delay(10);
   }
   Serial.println("Ready to go");
   
   can3.begin();
   can3.setBaudRate(1000000); // 1 Mbps
-
+  
+  start = millis();
+  start_micros = micros();
 }
 
 void loop() {
+  if ((millis() - start) > time_limit){
+    delay(3000);
+
+    // Software reset of the teensy
+    SCB_AIRCR = 0x05FA0004;
+
+  }
 
   // Receive any incoming CAN messages and print them to Serial
   CAN_message_t msg;
@@ -54,8 +61,8 @@ void loop() {
     lastMillis = millis();
 
     float t = millis() / 1000.0f; // seconds
-    const float freq = 5.0f; // Hz
-    const float amplitude = 1500.0f;
+    const float freq = FREQUENCY; // Hz
+    const float amplitude = 700.0f;
     const float center = 8212.0f;
     float value = center + amplitude * sinf(2.0f * M_PI * freq * t);
     number = (uint16_t)roundf(value);
@@ -66,7 +73,7 @@ void loop() {
     tx.buf[0] = number & 0xFF;        // Low byte
     tx.buf[1] = (number >> 8) & 0xFF; // High byte
     can3.write(tx);
-
+    /*
     Serial.print("Sent value: ");
     Serial.print(number);
     Serial.print("  bytes: ");
@@ -75,6 +82,7 @@ void loop() {
     Serial.print(" ");
     if (tx.buf[1] < 0x10) Serial.print('0');
     Serial.println(tx.buf[1], HEX);
+    */
   }
 #endif
 
