@@ -13,7 +13,7 @@ import pickle
 ## Define a timeout to be 1 second
 SERIAL_TIMEOUT = 1.0
 BAUD_RATE = 115200
-MAX_FREQUENCY = 3
+MAX_FREQUENCY = 30
 
 def find_teensy_port():
     """Find the Teensy serial port automatically"""
@@ -175,7 +175,7 @@ def perform_fft_and_plot(times, positions, csv_filename):
     plt.title('FFT: Frequency Spectrum (0-25 Hz)')
     plt.xlim(0, MAX_FREQUENCY)
     # Compute tick positions (use 6 ticks from 0 to MAX_FREQUENCY to avoid non-integer step errors)
-    ticks = np.linspace(0, MAX_FREQUENCY, 6)
+    ticks = np.linspace(0, MAX_FREQUENCY, 3)
     plt.xticks(ticks)  # Ticks from 0 to MAX_FREQUENCY inclusive
     plt.grid(True, alpha=0.3)
     
