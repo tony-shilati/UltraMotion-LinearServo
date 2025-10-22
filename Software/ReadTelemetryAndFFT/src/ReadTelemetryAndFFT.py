@@ -154,7 +154,7 @@ def perform_fft_and_plot(times, positions, csv_filename):
     ## The plot is saved as a date and timestamped file in ../outputs
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = os.path.dirname(csv_filename)
-    plot_filename = os.path.join(output_dir, f"fft_plot_{timestamp}.fig.pkl")
+    plot_filename = os.path.join(output_dir, f"fft_plot_{timestamp}.svg")
     
     # Create plot
     fig = plt.figure(figsize=(12, 8))
@@ -180,10 +180,9 @@ def perform_fft_and_plot(times, positions, csv_filename):
     plt.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    # Save the Matplotlib Figure object as a pickle so it can be reloaded later
-    with open(plot_filename, 'wb') as f:
-        pickle.dump(fig, f)
-    print(f"Matplotlib figure saved to: {plot_filename}")
+    # Save as vector graphics (SVG format)
+    plt.savefig(plot_filename, format='svg', dpi=150)
+    print(f"Vector graphics plot saved to: {plot_filename}")
     
     # Show plot
     plt.show()
@@ -215,3 +214,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

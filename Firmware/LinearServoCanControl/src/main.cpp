@@ -5,8 +5,8 @@
 #define FREQUENCY_2 20.0f                 // Hz
 #define INITIAL_AMPLITUDE 1.93f           // mm
 #define INITIAL_AMPLITUDE_TICKS 2800.0f   // mm
-#define FINAL_AMPLITUDE 0.51f             // mm
-#define SWEEP_LENGTH 100.0f                // s
+#define FINAL_AMPLITUDE 0.75f             // mm
+#define SWEEP_LENGTH 60.0f                // s
 #define SEND_INTERVAL 1                   // ms
 
 static uint32_t lastMillis = 0;
