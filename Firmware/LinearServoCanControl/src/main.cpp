@@ -1,12 +1,12 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
 
-#define FREQUENCY_1 0.0f                  // Hz
-#define FREQUENCY_2 20.0f                 // Hz
+#define FREQUENCY_1 0.5f                  // Hz
+#define FREQUENCY_2 25.0f                 // Hz
 #define INITIAL_AMPLITUDE 1.93f           // mm
 #define INITIAL_AMPLITUDE_TICKS 2800.0f   // mm
 #define FINAL_AMPLITUDE 0.51f             // mm
-#define SWEEP_LENGTH 100.0f                // s
+#define SWEEP_LENGTH 60.0f                // s
 #define SEND_INTERVAL 1                   // ms
 
 static uint32_t lastMillis = 0;
@@ -70,7 +70,7 @@ void loop() {
     float t = millis() / 1000.0f; // seconds
     const float center = 8212.0f;
     float value = center + INITIAL_AMPLITUDE_TICKS * exp(-t*tau_inv) *
-      sinf(2.0f * PI * ((FREQUENCY_1 * t) + (FREQUENCY_2 - FREQUENCY_1) / (2.0f*SWEEP_LENGTH) * t*t));
+      sinf(2.0f * PI * FREQUENCY_1 * SWEEP_LENGTH * ((pow(FREQUENCY_2/FREQUENCY_1, t/SWEEP_LENGTH) - 1) / (log(FREQUENCY_2/FREQUENCY_1))));
     number = (uint16_t)roundf(value);
 
     CAN_message_t tx;
