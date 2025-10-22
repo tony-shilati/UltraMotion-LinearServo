@@ -6,7 +6,7 @@
 #define INITIAL_AMPLITUDE 1.93f           // mm
 #define INITIAL_AMPLITUDE_TICKS 2800.0f   // mm
 #define FINAL_AMPLITUDE 0.51f             // mm
-#define SWEEP_LENGTH 20.0f                // s
+#define SWEEP_LENGTH 100.0f                // s
 #define SEND_INTERVAL 1                   // ms
 
 static uint32_t lastMillis = 0;
@@ -17,7 +17,6 @@ FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 uint16_t number;
 unsigned long start;
 unsigned long start_micros;
-unsigned long time_limit = 10 * 1000;
 float tau_inv = -log(FINAL_AMPLITUDE/INITIAL_AMPLITUDE) / SWEEP_LENGTH; // Inverse time constant of exponential decay
 
 void printMessage(const CAN_message_t &m) {
@@ -48,7 +47,7 @@ void setup() {
 }
 
 void loop() {
-  if ((millis() - start) > time_limit){
+  if ((millis() - start) > SWEEP_LENGTH * 1000){
     delay(3000);
 
     // Software reset of the teensy
@@ -80,6 +79,7 @@ void loop() {
     tx.buf[0] = number & 0xFF;        // Low byte
     tx.buf[1] = (number >> 8) & 0xFF; // High byte
     can3.write(tx);
+
   }
 
 }

@@ -11,9 +11,9 @@ import sys
 import pickle
 
 ## Define a timeout to be 1 second
-SERIAL_TIMEOUT = 1.0
+SERIAL_TIMEOUT = 2.0
 BAUD_RATE = 115200
-MAX_FREQUENCY = 30
+MAX_FREQUENCY = 100
 
 def find_teensy_port():
     """Find the Teensy serial port automatically"""
