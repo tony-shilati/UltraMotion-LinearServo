@@ -1,7 +1,16 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
-#define SEND_EXAMPLE
-#define FREQUENCY 1.0f
+
+#define FREQUENCY_1 0.0f                  // Hz
+#define FREQUENCY_2 20.0f                 // Hz
+#define INITIAL_AMPLITUDE 1.93f           // mm
+#define INITIAL_AMPLITUDE_TICKS 2800.0f   // mm
+#define FINAL_AMPLITUDE 0.51f             // mm
+#define SWEEP_LENGTH 20.0f                // s
+#define SEND_INTERVAL 1                   // ms
+
+static uint32_t lastMillis = 0;
+
 // Use CAN3 interface for the 3rd CAN bus on Teensy 4.1
 FlexCAN_T4<CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 
@@ -9,6 +18,7 @@ uint16_t number;
 unsigned long start;
 unsigned long start_micros;
 unsigned long time_limit = 10 * 1000;
+float tau_inv = -log(FINAL_AMPLITUDE/INITIAL_AMPLITUDE) / SWEEP_LENGTH; // Inverse time constant of exponential decay
 
 void printMessage(const CAN_message_t &m) {
   // print telemetry data and timestamp
@@ -53,18 +63,15 @@ void loop() {
   }
 
   // Optional: example transmitter (enable by defining SEND_EXAMPLE)
-#ifdef SEND_EXAMPLE
-  static uint32_t lastMillis = 0;
-  const uint32_t sendIntervalMs = 1; // Send period
+  
 
-  if (millis() - lastMillis >= sendIntervalMs) {
+  if (millis() - lastMillis >= (uint32_t)SEND_INTERVAL) {
     lastMillis = millis();
 
     float t = millis() / 1000.0f; // seconds
-    const float freq = FREQUENCY; // Hz
-    const float amplitude = 700.0f;
     const float center = 8212.0f;
-    float value = center + amplitude * sinf(2.0f * M_PI * freq * t);
+    float value = center + INITIAL_AMPLITUDE_TICKS * exp(-t*tau_inv) *
+      sinf(2.0f * PI * ((FREQUENCY_1 * t) + (FREQUENCY_2 - FREQUENCY_1) / (2.0f*SWEEP_LENGTH) * t*t));
     number = (uint16_t)roundf(value);
 
     CAN_message_t tx;
@@ -73,17 +80,6 @@ void loop() {
     tx.buf[0] = number & 0xFF;        // Low byte
     tx.buf[1] = (number >> 8) & 0xFF; // High byte
     can3.write(tx);
-    /*
-    Serial.print("Sent value: ");
-    Serial.print(number);
-    Serial.print("  bytes: ");
-    if (tx.buf[0] < 0x10) Serial.print('0');
-    Serial.print(tx.buf[0], HEX);
-    Serial.print(" ");
-    if (tx.buf[1] < 0x10) Serial.print('0');
-    Serial.println(tx.buf[1], HEX);
-    */
   }
-#endif
 
 }
