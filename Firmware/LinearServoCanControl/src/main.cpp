@@ -2,9 +2,10 @@
 #include <math.h>
 #include <QuadEncoder.h>
 
-#define FREQUENCY 1.0f                  // Hz
-#define AMPLITUDE 1800                  // Ticks
+#define FREQUENCY 10.0f                  // Hz
+#define AMPLITUDE 5000                  // Ticks
 #define SWEEP_LENGTH 5.0f              // s
+#define CENTER 8212
 
 
 
@@ -12,7 +13,7 @@
  * Object Instantiation
  *////////
 FlexCAN_T4        <CAN3, RX_SIZE_256, TX_SIZE_16> can3;
-QuadEncoder       encoder1(3, 5, 7);  // ENC1 using pins 0 (A) and 1 (B)
+QuadEncoder       encoder1(3, 7, 5);  // ENC1 using pins 0 (A) and 1 (B)
 
 IntervalTimer     servoTimer;
 IntervalTimer     encoderTimer;
@@ -48,6 +49,7 @@ void setup() {
    *////////
   can3.begin();
   can3.setBaudRate(1000000); // 1 Mbps
+  
 
   /*////////
    * Configure the encoder
@@ -63,7 +65,7 @@ void setup() {
   digitalWrite(26, LOW);
   digitalWrite(11, HIGH);
   digitalWrite(12, LOW);
-  
+
   // Start the timers
   start = millis();
   start_micros = micros();
@@ -82,20 +84,20 @@ void setup() {
  *////////
 void loop() {
   if ((millis() - start) > SWEEP_LENGTH * 1000){
+    noInterrupts();
     delay(3000);
 
     // Software reset of the teensy
     SCB_AIRCR = 0x05FA0004;
+    interrupts();
 
   }
 
   // Receive any incoming CAN messages and print them to Serial
   CAN_message_t msg;
-  noInterrupts();
   if (can3.read(msg)) {
     printMessage(msg);
   }
-  interrupts();
 }
 
 
@@ -127,7 +129,7 @@ void readEncoder(){
 void commandServo(){
 
   float t = millis() / 1000.0f; // seconds
-  const float center = 8212.0f;
+  const float center = (float)CENTER;
   float value = center + AMPLITUDE * sinf(2.0f * PI * FREQUENCY * t);
   number = (uint16_t)roundf(value);
 

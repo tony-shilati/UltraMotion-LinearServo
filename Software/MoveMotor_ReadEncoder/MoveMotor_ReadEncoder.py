@@ -246,6 +246,9 @@ def _compute_uniform_fft(times, values):
         # Not enough samples for a meaningful FFT
         return None
 
+    # subtract DC / center value before windowing to remove large zero-frequency component
+    y_uniform = y_uniform - np.mean(y_uniform)
+
     # apply window to reduce leakage
     window = np.hanning(len(y_uniform))
     yw = y_uniform * window
@@ -311,9 +314,9 @@ def plot_data(telemetry_times, telemetry_vals, encoder_times, encoder_vals, csv_
 
         # set x limit to 0-25 Hz if possible
         if nyq is not None and nyq > 0:
-            xlim = min(25.0, nyq)
+            xlim = min(160.0, nyq)
         else:
-            xlim = 25.0
+            xlim = 160.0
         ax_fft.set_xlim(0, xlim)
 
         xticks = list(range(0, int(ceil(xlim)) + 1))
