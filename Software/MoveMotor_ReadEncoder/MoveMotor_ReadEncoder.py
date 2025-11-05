@@ -27,6 +27,8 @@ from math import ceil
 # Configuration
 BAUD_RATE = 115200
 INACTIVITY_TIMEOUT = 3.0  # seconds
+SERVO_CONVERSION = 1.0  # multiply T and GND values by this factor (default 1.0)
+SERVO_CONVERSION = 5.782369e-4 #mm/ticks
 
 
 def find_teensy_port():
@@ -39,7 +41,8 @@ def find_teensy_port():
 
 
 def ensure_output_dir():
-    out_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'outputs')
+    # place outputs directory alongside this script
+    out_dir = os.path.join(os.path.dirname(__file__), 'outputs')
     os.makedirs(out_dir, exist_ok=True)
     return out_dir
 
@@ -68,126 +71,174 @@ def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TI
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     csv_path = os.path.join(out_dir, f"MoveMotorTelemetry_{timestamp}.csv")
 
-    # Separate storage for telemetry and encoder messages
+    # Separate storage for telemetry, encoder and GND messages
     telemetry_times = []
     telemetry_vals = []
     encoder_times = []
     encoder_vals = []
+    gnd_times = []
+    gnd_vals = []
 
     last_recv = time.time()
 
     print(f"Reading lines (timeout after {inactivity_timeout}s of inactivity)...")
-    with open(csv_path, 'w', newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        # write raw records with a type column so we store the original stream
-        writer.writerow(['type', 'value', 'time'])
 
-        try:
-            while True:
-                try:
-                    raw = ser.readline()
-                except (serial.SerialException, OSError) as e:
-                    # Happens when device is unplugged or OS-level read fails
-                    print(f"\nSerial read error: {e}")
-                    print("Stopping capture. If the device was unplugged, reconnect and re-run the script.")
+    try:
+        while True:
+            try:
+                raw = ser.readline()
+            except (serial.SerialException, OSError) as e:
+                # Happens when device is unplugged or OS-level read fails
+                print(f"\nSerial read error: {e}")
+                print("Stopping capture. If the device was unplugged, reconnect and re-run the script.")
+                break
+            if not raw:
+                # no data this read
+                if (time.time() - last_recv) >= inactivity_timeout:
+                    print('\nInactivity timeout reached, stopping capture.')
                     break
-                if not raw:
-                    # no data this read
-                    if (time.time() - last_recv) >= inactivity_timeout:
-                        print('\nInactivity timeout reached, stopping capture.')
-                        break
-                    continue
+                continue
 
-                last_recv = time.time()
-                try:
-                    line = raw.decode('utf-8', errors='replace').strip()
-                except Exception:
-                    line = str(raw)
+            last_recv = time.time()
+            try:
+                line = raw.decode('utf-8', errors='replace').strip()
+            except Exception:
+                line = str(raw)
 
-                if not line:
-                    continue
+            if not line:
+                continue
 
-                # Accept lines starting with 'T:' or 'E:' (case-insensitive)
-                l = line.strip()
-                if len(l) == 0:
-                    continue
+            # Accept prefixed messages like 'T:val,time', 'E:val,time', or 'GND:val,time'
+            l = line.strip()
+            if len(l) == 0:
+                continue
 
-                msg_type = None
-                payload = None
-                if l[0].upper() == 'T' and l[1:2] == ':':
+            msg_type = None
+            payload = None
+            # look for a prefix before the first ':'
+            colon = l.find(':')
+            if colon > 0:
+                prefix = l[:colon].upper()
+                payload = l[colon+1:]
+                if prefix == 'T' or prefix == 'TELEMETRY':
                     msg_type = 'T'
-                    payload = l[2:]
-                elif l[0].upper() == 'E' and l[1:2] == ':':
+                elif prefix == 'E' or prefix == 'ENCODER':
                     msg_type = 'E'
-                    payload = l[2:]
+                elif prefix == 'GND':
+                    msg_type = 'GND'
                 else:
-                    # also accept bare comma/whitespace triple as fallback (legacy)
-                    # keep compatibility: try to split into three parts
-                    parts = [p.strip() for p in l.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
-                    if len(parts) == 1:
-                        parts = l.split()
-                    if len(parts) >= 3:
-                        # legacy triple: telemetry, encoder, time
-                        try:
-                            tval = float(parts[0])
-                            enc = float(parts[1])
-                            tstamp = float(parts[2])
-                        except ValueError:
-                            print(f"Skipping unparsable legacy line: '{line}'")
-                            continue
-                        # write two raw records so user can trace original stream
-                        writer.writerow(['T', f"{tval:.4f}", f"{tstamp:.4f}"])
-                        writer.writerow(['E', f"{enc:.4f}", f"{tstamp:.4f}"])
-                        telemetry_vals.append(tval); telemetry_times.append(tstamp)
-                        encoder_vals.append(enc); encoder_times.append(tstamp)
-                        if (len(telemetry_times) + len(encoder_times)) % 50 == 0:
-                            print(f"Captured total records: T={len(telemetry_times)}, E={len(encoder_times)}")
-                        continue
-                    else:
-                        print(f"Skipping malformed line: '{line}'")
-                        continue
-
-                # payload should be value,time (comma or whitespace separated)
-                if payload is None:
-                    print(f"Skipping unparsable line: '{line}'")
-                    continue
-
-                # normalize separators
-                parts = [p.strip() for p in payload.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
+                    # unknown prefix; treat as no prefix and fall through to legacy parsing
+                    msg_type = None
+                    payload = None
+            if payload is None:
+                # also accept bare comma/whitespace triple as fallback (legacy)
+                # keep compatibility: try to split into three parts
+                parts = [p.strip() for p in l.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
                 if len(parts) == 1:
-                    parts = payload.split()
-
-                if len(parts) < 2:
-                    print(f"Skipping malformed payload: '{payload}'")
+                    parts = l.split()
+                if len(parts) >= 3:
+                    # legacy triple: telemetry, encoder, time
+                    try:
+                        tval = float(parts[0])
+                        enc = float(parts[1])
+                        tstamp = float(parts[2])
+                    except ValueError:
+                        print(f"Skipping unparsable legacy line: '{line}'")
+                        continue
+                    # apply servo conversion to telemetry (T) values
+                    tval_conv = tval * SERVO_CONVERSION
+                    telemetry_vals.append(tval_conv); telemetry_times.append(tstamp)
+                    encoder_vals.append(enc); encoder_times.append(tstamp)
+                    if (len(telemetry_times) + len(encoder_times)) % 50 == 0:
+                        print(f"Captured total records: T={len(telemetry_times)}, E={len(encoder_times)}")
                     continue
-
-                try:
-                    val = float(parts[0])
-                    tstamp = float(parts[1])
-                except ValueError:
-                    print(f"Skipping unparsable numbers in line: '{line}'")
-                    continue
-
-                # record raw and typed data
-                writer.writerow([msg_type, f"{val:.4f}", f"{tstamp:.4f}"])
-                if msg_type == 'T':
-                    telemetry_vals.append(val)
-                    telemetry_times.append(tstamp)
                 else:
-                    encoder_vals.append(val)
-                    encoder_times.append(tstamp)
+                    print(f"Skipping malformed line: '{line}'")
+                    continue
 
-                if (len(telemetry_times) + len(encoder_times)) % 50 == 0:
-                    print(f"Captured total records: T={len(telemetry_times)}, E={len(encoder_times)}")
+            # payload should be value,time (comma or whitespace separated)
+            if payload is None:
+                print(f"Skipping unparsable line: '{line}'")
+                continue
 
-        except KeyboardInterrupt:
-            print('\nInterrupted by user, stopping capture.')
-        finally:
-            ser.close()
+            # normalize separators
+            parts = [p.strip() for p in payload.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
+            if len(parts) == 1:
+                parts = payload.split()
+
+            if len(parts) < 2:
+                print(f"Skipping malformed payload: '{payload}'")
+                continue
+
+            try:
+                val = float(parts[0])
+                tstamp = float(parts[1])
+            except ValueError:
+                print(f"Skipping unparsable numbers in line: '{line}'")
+                continue
+
+            # apply SERVO_CONVERSION to T and GND values before storing
+            if msg_type == 'T':
+                val_to_store = val * SERVO_CONVERSION
+            elif msg_type == 'GND':
+                val_to_store = val * SERVO_CONVERSION
+            else:
+                val_to_store = val
+
+            # record typed data
+            if msg_type == 'T':
+                telemetry_vals.append(val_to_store)
+                telemetry_times.append(tstamp)
+            elif msg_type == 'E':
+                encoder_vals.append(val)
+                encoder_times.append(tstamp)
+            elif msg_type == 'GND':
+                gnd_vals.append(val_to_store)
+                gnd_times.append(tstamp)
+
+            if (len(telemetry_times) + len(encoder_times) + len(gnd_times)) % 50 == 0:
+                print(f"Captured total records: T={len(telemetry_times)}, E={len(encoder_times)}, GND={len(gnd_times)}")
+
+    except KeyboardInterrupt:
+        print('\nInterrupted by user, stopping capture.')
+    finally:
+        ser.close()
+
+    # After capture completes, write consolidated CSV with columns:
+    # [gnd, gnd_time, telemetry, telemetry_time, encoder, encoder_time]
+    try:
+        with open(csv_path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['Command(mm)', 'command_time(s)', 'telemetry(mm)', 'telemetry_time(s)', 'encoder(mm)', 'encoder_time(s)'])
+            max_len = max(len(gnd_vals), len(telemetry_vals), len(encoder_vals))
+            for i in range(max_len):
+                row = []
+                if i < len(gnd_vals):
+                    row.append(f"{gnd_vals[i]:.4f}")
+                    row.append(f"{gnd_times[i]:.4f}")
+                else:
+                    row.extend(['', ''])
+
+                if i < len(telemetry_vals):
+                    row.append(f"{telemetry_vals[i]:.4f}")
+                    row.append(f"{telemetry_times[i]:.4f}")
+                else:
+                    row.extend(['', ''])
+
+                if i < len(encoder_vals):
+                    row.append(f"{encoder_vals[i]:.4f}")
+                    row.append(f"{encoder_times[i]:.4f}")
+                else:
+                    row.extend(['', ''])
+
+                writer.writerow(row)
+    except Exception as e:
+        print(f"Failed to write consolidated CSV: {e}")
 
     print(f"Saved CSV to: {csv_path}")
     return (np.array(telemetry_times), np.array(telemetry_vals),
-            np.array(encoder_times), np.array(encoder_vals), csv_path)
+        np.array(encoder_times), np.array(encoder_vals),
+        np.array(gnd_times), np.array(gnd_vals), csv_path)
 
 
 def _compute_uniform_fft(times, values):
@@ -239,8 +290,8 @@ def _compute_uniform_fft(times, values):
         original_count = len(times)
         est_n = int(ceil(duration / dt)) if duration > 0 else original_count
         N = max(256, original_count, est_n)
-        t_uniform = np.linspace(t_start, t_end, N)
-        y_uniform = np.interp(t_uniform, times, values)
+    t_uniform = np.linspace(t_start, t_end, N)
+    y_uniform = np.interp(t_uniform, times, values)
 
     if len(y_uniform) < 4:
         # Not enough samples for a meaningful FFT
@@ -253,16 +304,70 @@ def _compute_uniform_fft(times, values):
     window = np.hanning(len(y_uniform))
     yw = y_uniform * window
 
+    # compute FFT on the windowed, uniformly sampled signal
     yf = np.fft.rfft(yw)
-    xf = np.fft.rfftfreq(len(yw), d=(t_uniform[1] - t_uniform[0]))
-    # normalize magnitude by window energy to keep scale consistent
-    mag = np.abs(yf) / np.sum(window)
-    nyquist = 0.5 * fs
+    d_uniform = float(t_uniform[1] - t_uniform[0])
+    xf = np.fft.rfftfreq(len(yw), d=d_uniform)
+
+    # Compute single-sided amplitude spectrum and compensate for the window
+    # Standard single-sided amplitude (for real signals) is (2/N)*|Y|,
+    # but because we applied a window we correct by dividing by the window sum
+    # (equivalent to multiplying by N/sum(window)). Combining these gives
+    # 2 * |Y| / sum(window)
+    mag = 2.0 * np.abs(yf) / np.sum(window)
+
+    # sampling frequency and nyquist based on the uniform grid spacing
+    fs_uniform = 1.0 / d_uniform if d_uniform > 0 else fs
+    nyquist = 0.5 * fs_uniform
     return xf, mag, nyquist
 
 
-def plot_data(telemetry_times, telemetry_vals, encoder_times, encoder_vals, csv_path):
-    if len(telemetry_times) == 0 and len(encoder_times) == 0:
+def _interpolate_to_uniform(times, values, min_N=256):
+    """Interpolate times/values to a uniform grid.
+
+    Returns (t_uniform, y_uniform, fs) or None if not enough data.
+    """
+    if len(times) < 2:
+        return None
+
+    times = np.array(times, dtype=float)
+    values = np.array(values, dtype=float)
+    sort_idx = np.argsort(times)
+    times = times[sort_idx]
+    values = values[sort_idx]
+
+    diffs = np.diff(times)
+    positive_diffs = diffs[np.isfinite(diffs) & (diffs > 0)]
+    if positive_diffs.size > 0:
+        dt = float(np.median(positive_diffs))
+    else:
+        dt = 1.0
+    if not np.isfinite(dt) or dt <= 0:
+        dt = 1.0
+
+    t_start, t_end = times[0], times[-1]
+    duration = t_end - t_start
+    if duration <= 0:
+        # fallback to using original spacing
+        N = max(min_N, len(values))
+        t_uniform = np.arange(len(values), dtype=float) * dt
+        y_uniform = values.copy()
+    else:
+        original_count = len(times)
+        est_n = int(ceil(duration / dt)) if duration > 0 else original_count
+        N = max(min_N, original_count, est_n)
+        t_uniform = np.linspace(t_start, t_end, N)
+        y_uniform = np.interp(t_uniform, times, values)
+
+    if len(y_uniform) < 4:
+        return None
+
+    fs_uniform = 1.0 / float(t_uniform[1] - t_uniform[0])
+    return t_uniform, y_uniform, fs_uniform
+
+
+def plot_data(telemetry_times, telemetry_vals, encoder_times, encoder_vals, gnd_times, gnd_vals, csv_path):
+    if len(telemetry_times) == 0 and len(encoder_times) == 0 and len(gnd_times) == 0:
         print("No data to plot.")
         return
 
@@ -274,21 +379,26 @@ def plot_data(telemetry_times, telemetry_vals, encoder_times, encoder_vals, csv_
     fig, (ax_time, ax_fft) = plt.subplots(2, 1, figsize=(10, 8),
                                           gridspec_kw={'height_ratios': [2, 1]})
 
-    # Time domain: telemetry (blue) and encoder (red)
+    # Time domain: plot telemetry, encoder and GND on a single axis (different colors)
+    # Subtract center (mean) from T and GND for time-domain plotting
+    telemetry_vals_plot = np.array(telemetry_vals) if len(telemetry_vals) > 0 else np.array([])
+    gnd_vals_plot = np.array(gnd_vals) if len(gnd_vals) > 0 else np.array([])
+    if telemetry_vals_plot.size > 0:
+        telemetry_vals_plot = telemetry_vals_plot - np.mean(telemetry_vals_plot)
+    if gnd_vals_plot.size > 0:
+        gnd_vals_plot = gnd_vals_plot - np.mean(gnd_vals_plot)
+
     if len(telemetry_times) > 0:
-        ax_time.plot(telemetry_times, telemetry_vals, 'b-', label='Telemetry')
-    ax_time.set_xlabel('Time (s)')
-    ax_time.set_ylabel('Telemetry', color='b')
-    ax_time.tick_params(axis='y', labelcolor='b')
-
-    ax_time2 = ax_time.twinx()
+        ax_time.plot(telemetry_times, telemetry_vals_plot, 'b-', label='Telemetry (T)')
     if len(encoder_times) > 0:
-        ax_time2.plot(encoder_times, encoder_vals, 'r-', label='Encoder')
-    ax_time2.set_ylabel('Encoder', color='r')
-    ax_time2.tick_params(axis='y', labelcolor='r')
+        ax_time.plot(encoder_times, encoder_vals, 'r-', label='Encoder')
+    if len(gnd_times) > 0:
+        ax_time.plot(gnd_times, gnd_vals_plot, 'g-', label='G-reading (G)')
 
+    ax_time.set_xlabel('Time (s)')
+    ax_time.set_ylabel('Signal')
     ax_time.grid(True, which='both', alpha=0.3)
-    ax_time.set_title('Telemetry and Encoder vs Time')
+    ax_time.set_title('Telemetry, Encoder and GND vs Time')
 
     # Frequency domain: compute FFTs for each series
     plotted_any = False
@@ -304,9 +414,19 @@ def plot_data(telemetry_times, telemetry_vals, encoder_times, encoder_vals, csv_
     e_fft = _compute_uniform_fft(encoder_times, encoder_vals) if len(encoder_times) > 1 else None
     if e_fft is not None:
         xf_e, mag_e, nyq_e = e_fft
+        # plot encoder FFT on the same axis as telemetry/GND so all magnitudes
+        # share a common scale (user requested).
         ax_fft.plot(xf_e, mag_e, color='r', label='Encoder')
         plotted_any = True
         nyq = nyq_e if nyq is None else min(nyq, nyq_e)
+
+    # GND FFT
+    g_fft = _compute_uniform_fft(gnd_times, gnd_vals) if len(gnd_times) > 1 else None
+    if g_fft is not None:
+        xf_g, mag_g, nyq_g = g_fft
+        ax_fft.plot(xf_g, mag_g, color='g', label='Command')
+        plotted_any = True
+        nyq = nyq_g if nyq is None else min(nyq, nyq_g)
 
     if plotted_any:
         ax_fft.set_xlabel('Frequency (Hz)')
@@ -322,27 +442,52 @@ def plot_data(telemetry_times, telemetry_vals, encoder_times, encoder_vals, csv_
         xticks = list(range(0, int(ceil(xlim)) + 1))
         ax_fft.set_xticks(xticks)
 
-        # If both telemetry and encoder FFTs exist, plot encoder magnitude
-        # on a separate right-hand y-axis so scales do not mask each other.
-        handles = []
-        labels = []
-        # telemetry was plotted on ax_fft (if present)
-        if t_fft is not None:
-            h1, l1 = ax_fft.get_legend_handles_labels()
-            handles += h1; labels += l1
+        # single legend for ax_fft (includes telemetry, GND, encoder if plotted)
+        ax_fft.legend()
 
-        if e_fft is not None:
-            # create twin y-axis for encoder FFT
-            ax_fft2 = ax_fft.twinx()
-            ax_fft2.plot(xf_e, mag_e, color='r', label='Encoder')
-            ax_fft2.set_ylabel('Encoder amplitude', color='r')
-            ax_fft2.tick_params(axis='y', labelcolor='r')
-            h2, l2 = ax_fft2.get_legend_handles_labels()
-            handles += h2; labels += l2
+    # --- Spectrogram for encoder (separate figure) ---
+    # If encoder data exists, interpolate to uniform grid and display/save
+    if len(encoder_times) > 3:
+        uni = _interpolate_to_uniform(encoder_times, encoder_vals, min_N=256)
+        if uni is not None:
+            t_u, y_u, fs_u = uni
+            try:
+                # choose NFFT as a power-of-two up to a cap, but not larger than the data length
+                max_cap = 4096
+                nfft_candidate = min(max_cap, len(y_u))
+                if nfft_candidate < 256:
+                    NFFT = 256
+                else:
+                    # highest power of two <= nfft_candidate
+                    NFFT = 2 ** int(np.floor(np.log2(nfft_candidate)))
+                noverlap = int(NFFT * 0.75)
 
-        # combine legends from both axes
-        if handles:
-            ax_fft.legend(handles, labels)
+                spec_fig = plt.figure(figsize=(10, 4))
+                ax_spec = spec_fig.add_subplot(1, 1, 1)
+
+                # compute spectrogram using matplotlib.mlab.specgram to get the raw Pxx
+                from matplotlib import mlab
+                Pxx, freqs, bins = mlab.specgram(y_u, NFFT=NFFT, Fs=fs_u, noverlap=noverlap)
+
+                # convert to dB, avoid log of zero
+                eps = 1e-12
+                Pxx_dB = 10.0 * np.log10(Pxx + eps)
+                max_db = float(np.nanmax(Pxx_dB)) if Pxx_dB.size else 0.0
+                vmin = max_db - 60.0
+
+                # plot with time on x and frequency on y; Pxx has shape (freqs, times)
+                im = ax_spec.pcolormesh(bins, freqs, Pxx_dB, shading='auto', cmap='viridis', vmin=vmin, vmax=max_db)
+                ax_spec.set_xlabel('Time (s)')
+                ax_spec.set_ylabel('Frequency (Hz)')
+                ax_spec.set_title('Encoder spectrogram (dB)')
+                cb = spec_fig.colorbar(im, ax=ax_spec)
+                cb.set_label('Power (dB)')
+                spec_path = os.path.join(out_dir, f"MoveMotorPlot_{timestamp}_encoder_spectrogram.svg")
+                spec_fig.tight_layout()
+                plt.savefig(spec_path, format='svg')
+                print(f"Saved encoder spectrogram to: {spec_path}")
+            except Exception as e:
+                print(f"Failed to create spectrogram: {e}")
     else:
         ax_fft.text(0.5, 0.5, 'Not enough data for FFT', ha='center', va='center')
 
@@ -357,8 +502,8 @@ def main():
     if len(sys.argv) > 1:
         port = sys.argv[1]
 
-    telemetry_times, telemetry_vals, encoder_times, encoder_vals, csv = read_from_serial(port)
-    plot_data(telemetry_times, telemetry_vals, encoder_times, encoder_vals, csv)
+    telemetry_times, telemetry_vals, encoder_times, encoder_vals, gnd_times, gnd_vals, csv = read_from_serial(port)
+    plot_data(telemetry_times, telemetry_vals, encoder_times, encoder_vals, gnd_times, gnd_vals, csv)
 
 
 if __name__ == '__main__':
