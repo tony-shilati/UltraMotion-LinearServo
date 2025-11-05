@@ -2,9 +2,10 @@
 #include <math.h>
 #include <QuadEncoder.h>
 
-#define FREQUENCY 10.0f                  // Hz
+#define FREQUENCY_1 3.0f                  // Hz
+#define FREQUENCY_2 20.0f                 // Hz
 #define AMPLITUDE 865                 // Ticks
-#define SWEEP_LENGTH 5.0f              // s
+#define SWEEP_LENGTH 45.0f              // s
 #define CENTER 8212
 
 
@@ -144,7 +145,7 @@ void commandServo(){
   } else {
 
     float t = (millis() - start) / 1000.0f; // seconds
-    float value = (float)CENTER + AMPLITUDE * sinf(2.0f * PI * FREQUENCY * t);
+    float value = (float)CENTER + AMPLITUDE * sinf(2.0f * PI * ((FREQUENCY_1 * t) + (FREQUENCY_2 - FREQUENCY_1) / (2.0f*SWEEP_LENGTH) * t*t));
     number = (uint16_t)roundf(value);
 
     Serial.print("GND:");
