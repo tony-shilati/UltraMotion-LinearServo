@@ -125,7 +125,7 @@ void printMessage(const CAN_message_t &m) {
     Serial.print("T:");
     Serial.print(value);           // decimal
     Serial.print(",");
-    Serial.println((micros() - start_micros)/1000000.0f, 4);
+    Serial.println((micros() - start_micros)/1000000.0f, 6);
   } else {
     Serial.println("  (not enough data for 16-bit)");
   }
@@ -135,7 +135,7 @@ void readEncoder(){
   Serial.print("E:");
   Serial.print(encoder1.read()*1e-3, 3);
   Serial.print(", ");
-  Serial.println((micros() - start_micros)/1000000.0f, 4);
+  Serial.println((micros() - start_micros)/1000000.0f, 6);
 }
 
 void commandServo(){
@@ -151,7 +151,7 @@ void commandServo(){
     Serial.print("GND:");
     Serial.print(number);
     Serial.print(", ");
-    Serial.println((micros() - start_micros)/1000000.0f, 4);
+    Serial.println((micros() - start_micros)/1000000.0f, 6);
   }
 
   CAN_message_t tx;
