@@ -1,7 +1,9 @@
 close, clear, clc
 
 % Load data from a CSV file
-data = readmatrix('MoveMotorTelemetry_20251105_164813.csv'); % Replace 'your_file.csv' with your actual file name
+filename = "MoveMotorTelemetry_20251105_164813.csv";
+path = "outputs/" + filename;
+data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
 %% Load the data
 
