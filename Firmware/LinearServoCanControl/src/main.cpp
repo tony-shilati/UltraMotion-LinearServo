@@ -1,12 +1,15 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
 #include <QuadEncoder.h>
+#include <Adafruit_NAU7802.h>
+#include <Wire.h>
 
-#define FREQUENCY_1 3.0f                  // Hz
-#define FREQUENCY_2 20.0f                 // Hz
+#define FREQUENCY_1 0.1f                  // Hz
+#define FREQUENCY_2 5.0f                 // Hz
 #define AMPLITUDE 865                 // Ticks
-#define SWEEP_LENGTH 45.0f              // s
+#define SWEEP_LENGTH 50.0f              // s
 #define CENTER 8212
+#define NAU_CAL 0.00004893370999f           // Load cell callibration (nextowns/tick)
 
 
 
@@ -15,9 +18,11 @@
  *////////
 FlexCAN_T4        <CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 QuadEncoder       encoder1(3, 7, 5);  // ENC1 using pins 0 (A) and 1 (B)
+Adafruit_NAU7802  nau;
 
 IntervalTimer     servoTimer;
 IntervalTimer     encoderTimer;
+IntervalTimer     loadcellTimer;
 
 
 /*////////
@@ -34,6 +39,7 @@ bool started = false;
 void readEncoder();
 void printMessage(const CAN_message_t &m);
 void commandServo();
+void readLoadCell();
 
 
 /*////////
@@ -51,6 +57,41 @@ void setup() {
    *////////
   can3.begin();
   can3.setBaudRate(1000000); // 1 Mbps
+
+  /*////////
+   * Config the load cell amp
+   */////////
+  Wire.begin();                        // Initialize I2C
+  Wire.setClock(400000);              // Use I2C (400 kHz)
+
+  if (!nau.begin(&Wire)) {
+    Serial.println("NAU7802 not found!");
+    while (1) {}
+  }
+
+  // Configure NAU7802
+  nau.setLDO(NAU7802_3V3);             // Match Teensy 3.3V supply
+  nau.setGain(NAU7802_GAIN_128);       // Max gain for small load cell signals
+  nau.setRate(NAU7802_RATE_320SPS);    // Maximum sample rate
+
+  // Take 500 readings to flush out readings
+  for (uint16_t i=0; i<500; i++) {
+    while (! nau.available()) delay(1);
+    nau.read();
+  }
+
+  while (! nau.calibrate(NAU7802_CALMOD_INTERNAL)) {
+    delay(1000);
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+
+  while (! nau.calibrate(NAU7802_CALMOD_OFFSET)) {
+    delay(1000);
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+
 
 
   /*////////
@@ -83,7 +124,9 @@ void setup() {
   /*////////
    * Start the control and DAQ timers
    *////////
-  encoderTimer.begin(readEncoder, 3125);  // 320 Hz timer
+  encoderTimer.begin(readEncoder, 3125);  // 500 Hz timer
+  delayMicroseconds(50);
+  loadcellTimer.begin(readLoadCell, 3125);  // Read load cell at 320 Hz
   
   
 }
@@ -104,12 +147,14 @@ void loop() {
   }
 
   // Receive any incoming CAN messages and print them to Serial
+  /*
   CAN_message_t msg;
   if (can3.read(msg)) {
     noInterrupts();
     printMessage(msg);
     interrupts();
   }
+    */
 }
 
 
@@ -122,13 +167,21 @@ void printMessage(const CAN_message_t &m) {
 
   if (m.len >= 2) {
     uint16_t value = (uint16_t)m.buf[0] | ((uint16_t)m.buf[1] << 8); // low byte first
-    Serial.print("T:");
-    Serial.print(value);           // decimal
-    Serial.print(",");
-    Serial.println((micros() - start_micros)/1000000.0f, 6);
+  // Label CAN telemetry as load-cell formatted 'LC:data,time'
+  Serial.print("LC:");
+  Serial.print(value);           // decimal raw value
+  Serial.print(",");
+  Serial.println((micros() - start_micros)/1000000.0f, 6);
   } else {
     Serial.println("  (not enough data for 16-bit)");
   }
+}
+
+void readLoadCell(){
+  Serial.print("LC: ");
+  Serial.print(nau.read()*NAU_CAL);
+  Serial.print(", ");
+  Serial.println((micros()-start_micros)/1000000.0f, 6);
 }
 
 void readEncoder(){
@@ -145,8 +198,9 @@ void commandServo(){
   } else {
 
     float t = (millis() - start) / 1000.0f; // seconds
-    float value = (float)CENTER + AMPLITUDE * sinf(2.0f * PI * ((FREQUENCY_1 * t) + (FREQUENCY_2 - FREQUENCY_1) / (2.0f*SWEEP_LENGTH) * t*t));
-    number = (uint16_t)roundf(value);
+    float value = CENTER + AMPLITUDE *
+        sinf(2.0f * PI * FREQUENCY_1 * SWEEP_LENGTH * ((pow(FREQUENCY_2/FREQUENCY_1, t/SWEEP_LENGTH) - 1) / (log(FREQUENCY_2/FREQUENCY_1))));
+      number = (uint16_t)roundf(value);
 
     Serial.print("GND:");
     Serial.print(number);
