@@ -26,9 +26,10 @@ from math import ceil
 
 # Configuration
 BAUD_RATE = 115200
-INACTIVITY_TIMEOUT = 3.0  # seconds
-SERVO_CONVERSION = 1.0  # multiply T and GND values by this factor (default 1.0)
-SERVO_CONVERSION = 5.782369e-4 #mm/ticks
+INACTIVITY_TIMEOUT = 5.0  # seconds
+# Conversion factors
+LOADCELL_CONVERSION = 1.0
+SERVO_CONVERSION = 5.782369e-4  # mm/ticks
 
 
 def find_teensy_port():
@@ -48,6 +49,12 @@ def ensure_output_dir():
 
 
 def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TIMEOUT):
+    """Read telemetry from a serial port (blocking) and return arrays.
+
+    Returns:
+      (cmd_times, cmd_vals, loadcell_times, loadcell_vals, encoder_times, encoder_vals, csv_path)
+    """
+    opened_here = False
     if port is None:
         port = find_teensy_port()
         if port is None:
@@ -59,8 +66,8 @@ def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TI
     print(f"Opening port {port} @ {baud} baud")
     try:
         ser = serial.Serial(port, baudrate=baud, timeout=1.0)
+        opened_here = True
     except Exception as e:
-        # serial.SerialException may be raised; catch broadly to be user-friendly
         print(f"Failed to open port {port}: {e}")
         print("Available ports:")
         for p in serial.tools.list_ports.comports():
@@ -71,29 +78,27 @@ def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TI
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     csv_path = os.path.join(out_dir, f"MoveMotorTelemetry_{timestamp}.csv")
 
-    # Separate storage for telemetry, encoder and GND messages
-    telemetry_times = []
-    telemetry_vals = []
+    # storage
+    cmd_times = []
+    cmd_vals = []
+    loadcell_times = []
+    loadcell_vals = []
     encoder_times = []
     encoder_vals = []
-    gnd_times = []
-    gnd_vals = []
+    telemetry_times = []
+    telemetry_vals = []
 
     last_recv = time.time()
 
     print(f"Reading lines (timeout after {inactivity_timeout}s of inactivity)...")
-
     try:
         while True:
             try:
                 raw = ser.readline()
             except (serial.SerialException, OSError) as e:
-                # Happens when device is unplugged or OS-level read fails
                 print(f"\nSerial read error: {e}")
-                print("Stopping capture. If the device was unplugged, reconnect and re-run the script.")
                 break
             if not raw:
-                # no data this read
                 if (time.time() - last_recv) >= inactivity_timeout:
                     print('\nInactivity timeout reached, stopping capture.')
                     break
@@ -108,36 +113,35 @@ def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TI
             if not line:
                 continue
 
-            # Accept prefixed messages like 'T:val,time', 'E:val,time', or 'GND:val,time'
             l = line.strip()
             if len(l) == 0:
                 continue
 
+            # prefix parsing
             msg_type = None
             payload = None
-            # look for a prefix before the first ':'
             colon = l.find(':')
             if colon > 0:
                 prefix = l[:colon].upper()
                 payload = l[colon+1:]
-                if prefix == 'T' or prefix == 'TELEMETRY':
+                if prefix == 'LC':
+                    msg_type = 'LC'
+                elif prefix == 'T' or prefix == 'TELEMETRY':
                     msg_type = 'T'
                 elif prefix == 'E' or prefix == 'ENCODER':
                     msg_type = 'E'
                 elif prefix == 'GND':
                     msg_type = 'GND'
                 else:
-                    # unknown prefix; treat as no prefix and fall through to legacy parsing
                     msg_type = None
                     payload = None
+
+            # legacy triple: value, encoder, timestamp
             if payload is None:
-                # also accept bare comma/whitespace triple as fallback (legacy)
-                # keep compatibility: try to split into three parts
                 parts = [p.strip() for p in l.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
                 if len(parts) == 1:
                     parts = l.split()
                 if len(parts) >= 3:
-                    # legacy triple: telemetry, encoder, time
                     try:
                         tval = float(parts[0])
                         enc = float(parts[1])
@@ -145,27 +149,20 @@ def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TI
                     except ValueError:
                         print(f"Skipping unparsable legacy line: '{line}'")
                         continue
-                    # apply servo conversion to telemetry (T) values
-                    tval_conv = tval * SERVO_CONVERSION
-                    telemetry_vals.append(tval_conv); telemetry_times.append(tstamp)
+                    loadcell_vals.append(tval * LOADCELL_CONVERSION)
+                    loadcell_times.append(tstamp)
                     encoder_vals.append(enc); encoder_times.append(tstamp)
-                    if (len(telemetry_times) + len(encoder_times)) % 50 == 0:
-                        print(f"Captured total records: T={len(telemetry_times)}, E={len(encoder_times)}")
+                    if (len(loadcell_times) + len(encoder_times)) % 50 == 0:
+                        print(f"Captured total records: LC={len(loadcell_times)}, E={len(encoder_times)}")
                     continue
                 else:
                     print(f"Skipping malformed line: '{line}'")
                     continue
 
-            # payload should be value,time (comma or whitespace separated)
-            if payload is None:
-                print(f"Skipping unparsable line: '{line}'")
-                continue
-
-            # normalize separators
+            # now payload should be value,time
             parts = [p.strip() for p in payload.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
             if len(parts) == 1:
                 parts = payload.split()
-
             if len(parts) < 2:
                 print(f"Skipping malformed payload: '{payload}'")
                 continue
@@ -177,57 +174,54 @@ def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TI
                 print(f"Skipping unparsable numbers in line: '{line}'")
                 continue
 
-            # apply SERVO_CONVERSION to T and GND values before storing
-            if msg_type == 'T':
-                val_to_store = val * SERVO_CONVERSION
-            elif msg_type == 'GND':
-                val_to_store = val * SERVO_CONVERSION
-            else:
-                val_to_store = val
-
-            # record typed data
-            if msg_type == 'T':
-                telemetry_vals.append(val_to_store)
+            if msg_type == 'LC':
+                loadcell_vals.append(val * LOADCELL_CONVERSION)
+                loadcell_times.append(tstamp)
+            elif msg_type == 'T':
+                telemetry_vals.append(val)
                 telemetry_times.append(tstamp)
             elif msg_type == 'E':
                 encoder_vals.append(val)
                 encoder_times.append(tstamp)
             elif msg_type == 'GND':
-                gnd_vals.append(val_to_store)
-                gnd_times.append(tstamp)
+                cmd_vals.append(val * SERVO_CONVERSION)
+                cmd_times.append(tstamp)
 
-            if (len(telemetry_times) + len(encoder_times) + len(gnd_times)) % 50 == 0:
-                print(f"Captured total records: T={len(telemetry_times)}, E={len(encoder_times)}, GND={len(gnd_times)}")
+            if (len(loadcell_times) + len(encoder_times) + len(cmd_times)) % 50 == 0:
+                print(f"Captured total records: LC={len(loadcell_times)}, E={len(encoder_times)}, CMD={len(cmd_times)}")
 
     except KeyboardInterrupt:
         print('\nInterrupted by user, stopping capture.')
     finally:
-        ser.close()
+        if opened_here:
+            try:
+                ser.close()
+            except Exception:
+                pass
 
-    # After capture completes, write consolidated CSV with columns:
-    # [gnd, gnd_time, telemetry, telemetry_time, encoder, encoder_time]
+    # Save consolidated CSV with columns [cmd, cmd_time, load_cell, load_cell_time, encoder, encoder_time]
     try:
         with open(csv_path, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
-            writer.writerow(['Command(mm)', 'command_time(s)', 'telemetry(mm)', 'telemetry_time(s)', 'encoder(mm)', 'encoder_time(s)'])
-            max_len = max(len(gnd_vals), len(telemetry_vals), len(encoder_vals))
+            writer.writerow(['cmd', 'cmd_time', 'load_cell', 'load_cell_time', 'encoder', 'encoder_time'])
+            max_len = max(len(cmd_vals), len(loadcell_vals), len(encoder_vals))
             for i in range(max_len):
                 row = []
-                if i < len(gnd_vals):
-                    row.append(f"{gnd_vals[i]:.4f}")
-                    row.append(f"{gnd_times[i]:.4f}")
+                if i < len(cmd_vals):
+                    row.append(f"{cmd_vals[i]:.6f}")
+                    row.append(f"{cmd_times[i]:.6f}")
                 else:
                     row.extend(['', ''])
 
-                if i < len(telemetry_vals):
-                    row.append(f"{telemetry_vals[i]:.4f}")
-                    row.append(f"{telemetry_times[i]:.4f}")
+                if i < len(loadcell_vals):
+                    row.append(f"{loadcell_vals[i]:.6f}")
+                    row.append(f"{loadcell_times[i]:.6f}")
                 else:
                     row.extend(['', ''])
 
                 if i < len(encoder_vals):
-                    row.append(f"{encoder_vals[i]:.4f}")
-                    row.append(f"{encoder_times[i]:.4f}")
+                    row.append(f"{encoder_vals[i]:.6f}")
+                    row.append(f"{encoder_times[i]:.6f}")
                 else:
                     row.extend(['', ''])
 
@@ -236,9 +230,7 @@ def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TI
         print(f"Failed to write consolidated CSV: {e}")
 
     print(f"Saved CSV to: {csv_path}")
-    return (np.array(telemetry_times), np.array(telemetry_vals),
-        np.array(encoder_times), np.array(encoder_vals),
-        np.array(gnd_times), np.array(gnd_vals), csv_path)
+    return (np.array(cmd_times), np.array(cmd_vals), np.array(loadcell_times), np.array(loadcell_vals), np.array(encoder_times), np.array(encoder_vals), csv_path)
 
 
 def _compute_uniform_fft(times, values):
@@ -502,8 +494,10 @@ def main():
     if len(sys.argv) > 1:
         port = sys.argv[1]
 
-    telemetry_times, telemetry_vals, encoder_times, encoder_vals, gnd_times, gnd_vals, csv = read_from_serial(port)
-    plot_data(telemetry_times, telemetry_vals, encoder_times, encoder_vals, gnd_times, gnd_vals, csv)
+    cmd_times, cmd_vals, loadcell_times, loadcell_vals, encoder_times, encoder_vals, csv = read_from_serial(port)
+    # plot_data expects (telemetry_times, telemetry_vals, encoder_times, encoder_vals, gnd_times, gnd_vals, csv)
+    # we map load-cell -> telemetry slot and cmd -> gnd slot for plotting
+    plot_data(loadcell_times, loadcell_vals, encoder_times, encoder_vals, cmd_times, cmd_vals, csv)
 
 
 if __name__ == '__main__':

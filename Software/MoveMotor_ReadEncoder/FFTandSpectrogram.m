@@ -16,7 +16,6 @@ cmd_time = rmmissing(data(:, 2));
 tel_signal = rmmissing(data(:, 3)); tel_signal = tel_signal - mean(tel_signal);
 tel_time = rmmissing(data(:, 4));
 
-
 % Encoder
 enc_signal = rmmissing(data(:, 5));
 enc_time = rmmissing(data(:, 6));
@@ -65,25 +64,31 @@ xlabel("Time (s)")
 [P1_tel, f_tel, fs_tel] = normalized_fft(tel_signal, tel_time);
 [P1_enc, f_enc, fs_enc] = normalized_fft(enc_signal, enc_time);
 
+z_cmd = fftshift(P1_cmd);
+
 figure(3)
+subplot(2,1,1)
 loglog(f_cmd, mag2db(P1_cmd), "LineWidth", 1.5), hold on
 loglog(f_tel, mag2db(P1_tel), "LineWidth", 1.5)
 loglog(f_enc, mag2db(P1_enc), "LineWidth", 1.5)
+ylabel("Amplitude (dB)")
+legend("Commanded", "Telemetry", "Linear Encoder")
 
 grid on
 xlim([1, max([0.5*fs_cmd, 0.5*fs_tel, 0.5*fs_enc])])
-legend("Commanded", "Telemetry", "Linear Encoder")
+
 xlabel("Frequency (Hz)")
-ylabel("Amplitude (dB)")
+
 
 %% Command spectrogram
 
 % Plot the spectrogram of the signal
 figure(4)
 subplot(3,1,1)
-s = spectrogram(cmd_signal, ceil(length(cmd_signal)/29), ...
-    ceil(length(cmd_signal)/30), ceil(length(cmd_signal)/29), fs_cmd, 'yaxis');
-spectrogram(cmd_signal, 1536, 1500, 1536, fs_cmd, 'yaxis');
+cs_len = length(cmd_signal);
+s = spectrogram(cmd_signal, ceil(cs_len/29), ...
+    ceil(cs_len/30), ceil(cs_len/29), fs_cmd, 'yaxis');
+spectrogram(cmd_signal, ceil(cs_len/29), ceil(cs_len/30), ceil(cs_len/29), fs_cmd, 'yaxis');
 
 title('Spectrogram of Command');
 xlabel('Time (s)');
@@ -98,9 +103,10 @@ ylim([0, fs_cmd/2])
 
 % Plot the spectrogram of the signal
 subplot(3,1,2)
-s = spectrogram(tel_signal, ceil(length(tel_signal)/29), ...
-    ceil(length(tel_signal)/30), ceil(length(tel_signal)/29), fs_tel, 'yaxis');
-spectrogram(tel_signal, 1536, 1500, 1536, fs_tel, 'yaxis');
+ts_len = length(tel_signal);
+s = spectrogram(tel_signal, ceil(ts_len/29), ...
+    ceil(ts_len/30), ceil(ts_len/29), fs_tel, 'yaxis');
+spectrogram(tel_signal, ceil(ts_len/29), ceil(ts_len/30), ceil(ts_len/29), fs_tel, 'yaxis');
 
 title('Spectrogram of Telemetry');
 xlabel('Time (s)');
@@ -117,9 +123,10 @@ ylim([0, fs_tel/2])
 
 % Plot the spectrogram of the signal
 subplot(3,1,3)
-s = spectrogram(enc_signal, ceil(length(enc_signal)/29), ...
-    ceil(length(enc_signal)/30), ceil(length(enc_signal)/29), fs_enc, 'yaxis');
-spectrogram(enc_signal, 1536, 1500, 1536, fs_enc, 'yaxis');
+es_len = length(enc_signal);
+s = spectrogram(enc_signal, ceil(es_len/29), ...
+    ceil(es_len/30), ceil(es_len/29), fs_enc, 'yaxis');
+spectrogram(enc_signal, ceil(es_len/29), ceil(es_len/30), ceil(es_len/29), fs_enc, 'yaxis');
 
 title('Spectrogram of Encoder');
 xlabel('Time (s)');
