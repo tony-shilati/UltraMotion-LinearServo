@@ -1,7 +1,7 @@
-close, clear, clc
+close all, clear, clc
 
 % Load data from a CSV file
-filename = "MoveMotorTelemetry_20251105_164928.csv";
+filename = "MoveMotorTelemetry_20251107_105828.csv";
 path = "outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
@@ -46,13 +46,18 @@ xlabel("Sample Period (ms)")
 %% Plot the three signals together
 
 figure(2)
+yyaxis left
 plot(cmd_time, cmd_signal, "LineWidth", 1.5), hold on
-plot(tel_time, tel_signal, "LineWidth", 1.5)
-plot(enc_time, enc_signal, "LineWidth", 1.5)
-
-legend("Commanded", "Telemetry", "Linear Encoder")
-xlabel("Time (s)")
+plot(enc_time, enc_signal, '-r', "LineWidth", 1.5)
 ylabel("Position (mm)")
+
+yyaxis right
+plot(tel_time, tel_signal, "LineWidth", 1.5)
+ylabel("Force (N)")
+
+legend("Commanded", "Linear Encoder", "Load Cell")
+xlabel("Time (s)")
+
 
 %% Plot the fft of all three together
 
