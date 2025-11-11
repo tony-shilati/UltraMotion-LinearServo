@@ -9,7 +9,11 @@
 #define AMPLITUDE 865                 // Ticks
 #define SWEEP_LENGTH 50.0f              // s
 #define CENTER 8212
-#define NAU_CAL 0.00004893370999f           // Load cell callibration (nextowns/tick)
+
+#define LC_CAL 0.012          // Load cell callibration (nextowns/tick) // NAU [0.00004893370999f] 
+#define LC_PIN 14
+#define LC_CAL_CYCLES 500
+
 
 
 
@@ -32,6 +36,7 @@ uint16_t          number;
 unsigned long     start;
 unsigned long     start_micros;
 bool started = false;
+float lc_offset;
 
 /*////////
  * Function Prototypes
@@ -59,39 +64,16 @@ void setup() {
   can3.setBaudRate(1000000); // 1 Mbps
 
   /*////////
-   * Config the load cell amp
+   * Config the load cell
    */////////
-  Wire.begin();                        // Initialize I2C
-  Wire.setClock(400000);              // Use I2C (400 kHz)
+   pinMode(LC_PIN, INPUT);
+   analogReadResolution(12);  // 12-bit ADC (0–4095)
 
-  if (!nau.begin(&Wire)) {
-    Serial.println("NAU7802 not found!");
-    while (1) {}
+  for (int i = 0; i < LC_CAL_CYCLES; i++) {
+    lc_offset += analogRead(LC_PIN);
+    delay(1);
   }
-
-  // Configure NAU7802
-  nau.setLDO(NAU7802_3V3);             // Match Teensy 3.3V supply
-  nau.setGain(NAU7802_GAIN_128);       // Max gain for small load cell signals
-  nau.setRate(NAU7802_RATE_320SPS);    // Maximum sample rate
-
-  // Take 500 readings to flush out readings
-  for (uint16_t i=0; i<500; i++) {
-    while (! nau.available()) delay(1);
-    nau.read();
-  }
-
-  while (! nau.calibrate(NAU7802_CALMOD_INTERNAL)) {
-    delay(1000);
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, HIGH);
-  }
-
-  while (! nau.calibrate(NAU7802_CALMOD_OFFSET)) {
-    delay(1000);
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, HIGH);
-  }
-
+  lc_offset = lc_offset / (float)LC_CAL_CYCLES;
 
 
   /*////////
@@ -124,7 +106,7 @@ void setup() {
   /*////////
    * Start the control and DAQ timers
    *////////
-  encoderTimer.begin(readEncoder, 3125);  // 500 Hz timer
+  encoderTimer.begin(readEncoder, 3125);  // 320 Hz timer
   delayMicroseconds(50);
   loadcellTimer.begin(readLoadCell, 3125);  // Read load cell at 320 Hz
   
@@ -179,7 +161,7 @@ void printMessage(const CAN_message_t &m) {
 
 void readLoadCell(){
   Serial.print("LC: ");
-  Serial.print(nau.read()*NAU_CAL);
+  Serial.print((analogRead(LC_PIN) - lc_offset)*LC_CAL);
   Serial.print(", ");
   Serial.println((micros()-start_micros)/1000000.0f, 6);
 }

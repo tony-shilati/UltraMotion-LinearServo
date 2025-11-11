@@ -1,7 +1,7 @@
 %% reading in the time domain data and plotting it
 clc,clear
 
-filename = "MoveMotorTelemetry_20251107_105828.csv";
+filename = "MoveMotorTelemetry_20251107_130715.csv";
 path = "outputs/" + filename;
 D = readmatrix(path);
 
@@ -61,8 +61,8 @@ fs = 1/dt(1);
 
 figure(8)
 % [s, f, t] = spectrogram(y, Nblk, floor(Nblk*NoPCToverlap));
-% waterplot(s,f,t)
 spectrogram(y, Nblk, floor(Nblk*NoPCToverlap),Nblk*2,fs)
+
 
 [H1,H2,Hv,ws,MCOH1,MCOH2,MCOHv,Guu,Gyu,Gyy] = frfmest(y,u,ts,Nblk,window_name,NoPCToverlap);
 

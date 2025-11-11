@@ -1,9 +1,11 @@
 close all, clear, clc
 
 % Load data from a CSV file
-filename = "MoveMotorTelemetry_20251107_105828.csv";
+filename = "MoveMotorTelemetry_20251107_105239.csv";
 path = "outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
+
+FontSize = 17; % Font size of the axes
 
 %% Load the data
 
@@ -15,6 +17,7 @@ cmd_time = rmmissing(data(:, 2));
 % Telemetry
 tel_signal = rmmissing(data(:, 3)); tel_signal = tel_signal - mean(tel_signal);
 tel_time = rmmissing(data(:, 4));
+%tel_signal = lowpass(tel_signal, 30, 1/mean(diff(tel_time)));
 
 % Encoder
 enc_signal = rmmissing(data(:, 5));
@@ -27,27 +30,30 @@ enc_sample_dist = diff(enc_time);
 
 figure(1)
 subplot(3,1,1)
-histogram(cmd_sample_dist * 1000, 100)
+histogram(cmd_sample_dist * 1000, 10)
 title("Command sample period distribution")
 ylabel("Num samples")
 
 subplot(3,1,2)
-histogram(tel_sample_dist * 1000, 100)
+histogram(tel_sample_dist * 1000, 10)
 title("Telemetry sample period distribution")
 ylabel("Num samples")
 
 subplot(3,1,3)
-histogram(enc_sample_dist * 1000, 100)
+histogram(enc_sample_dist * 1000, 10)
 title("Encoder sample period distribution")
 ylabel("Num samples")
 xlabel("Sample Period (ms)")
+
+ax = gca;
+ax.FontSize = FontSize;
 
 %% Plot the three signals together
 
 figure(2)
 yyaxis left
-plot(cmd_time, cmd_signal, "LineWidth", 1.5), hold on
-plot(enc_time, enc_signal, '-r', "LineWidth", 1.5)
+%plot(cmd_time, cmd_signal, "LineWidth", 1.5), hold on
+%plot(enc_time, enc_signal, '-r', "LineWidth", 1.5)
 ylabel("Position (mm)")
 
 yyaxis right
@@ -68,9 +74,9 @@ z_cmd = fftshift(P1_cmd);
 
 figure(3)
 subplot(2,1,1)
-loglog(f_cmd, mag2db(P1_cmd), "LineWidth", 1.5), hold on
-loglog(f_tel, mag2db(P1_tel), "LineWidth", 1.5)
-loglog(f_enc, mag2db(P1_enc), "LineWidth", 1.5)
+loglog(f_cmd, P1_cmd, "LineWidth", 1.5), hold on
+loglog(f_tel, P1_tel, "LineWidth", 1.5)
+loglog(f_enc, P1_enc, "LineWidth", 1.5)
 ylabel("Amplitude (dB)")
 legend("Commanded", "Telemetry", "Linear Encoder")
 
