@@ -1,7 +1,7 @@
 %% reading in the time domain data and plotting it
 clc,clear
 
-filename = "MoveMotorTelemetry_20251107_130715.csv";
+filename = "MoveMotorTelemetry_20251111_144443.csv";
 path = "outputs/" + filename;
 D = readmatrix(path);
 

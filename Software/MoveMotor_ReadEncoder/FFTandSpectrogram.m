@@ -1,7 +1,7 @@
 close all, clear, clc
 
 % Load data from a CSV file
-filename = "MoveMotorTelemetry_20251107_105239.csv";
+filename = "MoveMotorTelemetry_20251111_144443.csv";
 path = "outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
@@ -52,8 +52,8 @@ ax.FontSize = FontSize;
 
 figure(2)
 yyaxis left
-%plot(cmd_time, cmd_signal, "LineWidth", 1.5), hold on
-%plot(enc_time, enc_signal, '-r', "LineWidth", 1.5)
+plot(cmd_time, cmd_signal, "LineWidth", 1.5), hold on
+plot(enc_time, enc_signal, '-r', "LineWidth", 1.5)
 ylabel("Position (mm)")
 
 yyaxis right
