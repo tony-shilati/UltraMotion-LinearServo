@@ -21,216 +21,8 @@ import os
 import sys
 from datetime import datetime
 import numpy as np
-import matplotlib.pyplot as plt
 from math import ceil
-
-# Configuration
-BAUD_RATE = 115200
-INACTIVITY_TIMEOUT = 5.0  # seconds
-# Conversion factors
-LOADCELL_CONVERSION = 1.0
-SERVO_CONVERSION = 5.782369e-4  # mm/ticks
-
-
-def find_teensy_port():
-    ports = serial.tools.list_ports.comports()
-    for p in ports:
-        desc = (p.description or '').lower()
-        if 'teensy' in desc or 'usb' in desc:
-            return p.device
-    return None
-
-
-def ensure_output_dir():
-    # place outputs directory alongside this script
-    out_dir = os.path.join(os.path.dirname(__file__), 'outputs')
-    os.makedirs(out_dir, exist_ok=True)
-    return out_dir
-
-
-def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TIMEOUT):
-    """Read telemetry from a serial port (blocking) and return arrays.
-
-    Returns:
-      (cmd_times, cmd_vals, loadcell_times, loadcell_vals, encoder_times, encoder_vals, csv_path)
-    """
-    opened_here = False
-    if port is None:
-        port = find_teensy_port()
-        if port is None:
-            print("No Teensy auto-detected. Available ports:")
-            for p in serial.tools.list_ports.comports():
-                print(f"  {p.device}: {p.description}")
-            port = input("Enter serial port (e.g. /dev/ttyACM0 or COM3): ")
-
-    print(f"Opening port {port} @ {baud} baud")
-    try:
-        ser = serial.Serial(port, baudrate=baud, timeout=1.0)
-        opened_here = True
-    except Exception as e:
-        print(f"Failed to open port {port}: {e}")
-        print("Available ports:")
-        for p in serial.tools.list_ports.comports():
-            print(f"  {p.device}: {p.description}")
-        raise SystemExit(1)
-
-    out_dir = ensure_output_dir()
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    csv_path = os.path.join(out_dir, f"MoveMotorTelemetry_{timestamp}.csv")
-
-    # storage
-    cmd_times = []
-    cmd_vals = []
-    loadcell_times = []
-    loadcell_vals = []
-    encoder_times = []
-    encoder_vals = []
-    telemetry_times = []
-    telemetry_vals = []
-
-    last_recv = time.time()
-
-    print(f"Reading lines (timeout after {inactivity_timeout}s of inactivity)...")
-    try:
-        while True:
-            try:
-                raw = ser.readline()
-            except (serial.SerialException, OSError) as e:
-                print(f"\nSerial read error: {e}")
-                break
-            if not raw:
-                if (time.time() - last_recv) >= inactivity_timeout:
-                    print('\nInactivity timeout reached, stopping capture.')
-                    break
-                continue
-
-            last_recv = time.time()
-            try:
-                line = raw.decode('utf-8', errors='replace').strip()
-            except Exception:
-                line = str(raw)
-
-            if not line:
-                continue
-
-            l = line.strip()
-            if len(l) == 0:
-                continue
-
-            # prefix parsing
-            msg_type = None
-            payload = None
-            colon = l.find(':')
-            if colon > 0:
-                prefix = l[:colon].upper()
-                payload = l[colon+1:]
-                if prefix == 'LC':
-                    msg_type = 'LC'
-                elif prefix == 'T' or prefix == 'TELEMETRY':
-                    msg_type = 'T'
-                elif prefix == 'E' or prefix == 'ENCODER':
-                    msg_type = 'E'
-                elif prefix == 'GND':
-                    msg_type = 'GND'
-                else:
-                    msg_type = None
-                    payload = None
-
-            # legacy triple: value, encoder, timestamp
-            if payload is None:
-                parts = [p.strip() for p in l.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
-                if len(parts) == 1:
-                    parts = l.split()
-                if len(parts) >= 3:
-                    try:
-                        tval = float(parts[0])
-                        enc = float(parts[1])
-                        tstamp = float(parts[2])
-                    except ValueError:
-                        print(f"Skipping unparsable legacy line: '{line}'")
-                        continue
-                    loadcell_vals.append(tval * LOADCELL_CONVERSION)
-                    loadcell_times.append(tstamp)
-                    encoder_vals.append(enc); encoder_times.append(tstamp)
-                    if (len(loadcell_times) + len(encoder_times)) % 50 == 0:
-                        print(f"Captured total records: LC={len(loadcell_times)}, E={len(encoder_times)}")
-                    continue
-                else:
-                    print(f"Skipping malformed line: '{line}'")
-                    continue
-
-            # now payload should be value,time
-            parts = [p.strip() for p in payload.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
-            if len(parts) == 1:
-                parts = payload.split()
-            if len(parts) < 2:
-                print(f"Skipping malformed payload: '{payload}'")
-                continue
-
-            try:
-                val = float(parts[0])
-                tstamp = float(parts[1])
-            except ValueError:
-                print(f"Skipping unparsable numbers in line: '{line}'")
-                continue
-
-            if msg_type == 'LC':
-                loadcell_vals.append(val * LOADCELL_CONVERSION)
-                loadcell_times.append(tstamp)
-            elif msg_type == 'T':
-                telemetry_vals.append(val)
-                telemetry_times.append(tstamp)
-            elif msg_type == 'E':
-                encoder_vals.append(val)
-                encoder_times.append(tstamp)
-            elif msg_type == 'GND':
-                cmd_vals.append(val * SERVO_CONVERSION)
-                cmd_times.append(tstamp)
-
-            if (len(loadcell_times) + len(encoder_times) + len(cmd_times)) % 50 == 0:
-                print(f"Captured total records: LC={len(loadcell_times)}, E={len(encoder_times)}, CMD={len(cmd_times)}")
-
-    except KeyboardInterrupt:
-        print('\nInterrupted by user, stopping capture.')
-    finally:
-        if opened_here:
-            try:
-                ser.close()
-            except Exception:
-                pass
-
-    # Save consolidated CSV with columns [cmd, cmd_time, load_cell, load_cell_time, encoder, encoder_time]
-    try:
-        with open(csv_path, 'w', newline='') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(['cmd', 'cmd_time', 'load_cell', 'load_cell_time', 'encoder', 'encoder_time'])
-            max_len = max(len(cmd_vals), len(loadcell_vals), len(encoder_vals))
-            for i in range(max_len):
-                row = []
-                if i < len(cmd_vals):
-                    row.append(f"{cmd_vals[i]:.6f}")
-                    row.append(f"{cmd_times[i]:.6f}")
-                else:
-                    row.extend(['', ''])
-
-                if i < len(loadcell_vals):
-                    row.append(f"{loadcell_vals[i]:.6f}")
-                    row.append(f"{loadcell_times[i]:.6f}")
-                else:
-                    row.extend(['', ''])
-
-                if i < len(encoder_vals):
-                    row.append(f"{encoder_vals[i]:.6f}")
-                    row.append(f"{encoder_times[i]:.6f}")
-                else:
-                    row.extend(['', ''])
-
-                writer.writerow(row)
-    except Exception as e:
-        print(f"Failed to write consolidated CSV: {e}")
-
-    print(f"Saved CSV to: {csv_path}")
-    return (np.array(cmd_times), np.array(cmd_vals), np.array(loadcell_times), np.array(loadcell_vals), np.array(encoder_times), np.array(encoder_vals), csv_path)
+import matplotlib.pyplot as plt
 
 
 def _compute_uniform_fft(times, values):
@@ -494,10 +286,165 @@ def main():
     if len(sys.argv) > 1:
         port = sys.argv[1]
 
-    cmd_times, cmd_vals, loadcell_times, loadcell_vals, encoder_times, encoder_vals, csv = read_from_serial(port)
-    # plot_data expects (telemetry_times, telemetry_vals, encoder_times, encoder_vals, gnd_times, gnd_vals, csv)
-    # we map load-cell -> telemetry slot and cmd -> gnd slot for plotting
-    plot_data(loadcell_times, loadcell_vals, encoder_times, encoder_vals, cmd_times, cmd_vals, csv)
+    # New behavior: capture 'G:data,time' and 'S:data1,data2,time' messages
+    # and save them to CSV with columns [G, G_time, S1, S2, S_time].
+    def read_GS_and_save_csv(port=None, baud=115200, inactivity_timeout=5.0):
+        opened_here = False
+        if port is None:
+            # attempt to auto-detect a Teensy/USB serial device
+            ports = list(serial.tools.list_ports.comports())
+            found = None
+            for p in ports:
+                desc = (p.description or '').lower()
+                if 'teensy' in desc or 'usb' in desc:
+                    found = p.device
+                    break
+            if found is None:
+                print("No serial port specified and no Teensy-like device auto-detected.\nAvailable ports:")
+                for p in ports:
+                    print(f"  {p.device}: {p.description}")
+                raise SystemExit(1)
+            port = found
+
+        print(f"Opening port {port} @ {baud} baud")
+        try:
+            ser = serial.Serial(port, baudrate=baud, timeout=1.0)
+            opened_here = True
+        except Exception as e:
+            print(f"Failed to open port {port}: {e}")
+            raise SystemExit(1)
+
+        out_dir = os.path.join(os.getcwd(), 'outputs')
+        os.makedirs(out_dir, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        csv_path = os.path.join(out_dir, f"MoveMotor_GS_{timestamp}.csv")
+
+        g_times = []
+        g_vals = []
+        s1_vals = []
+        s2_vals = []
+        s_times = []
+
+        last_recv = time.time()
+        print(f"Reading G/S lines (timeout after {inactivity_timeout}s inactivity)...")
+        try:
+            while True:
+                try:
+                    raw = ser.readline()
+                except (serial.SerialException, OSError) as e:
+                    print(f"\nSerial read error: {e}")
+                    break
+                if not raw:
+                    if (time.time() - last_recv) >= inactivity_timeout:
+                        print('\nInactivity timeout reached, stopping capture.')
+                        break
+                    continue
+
+                last_recv = time.time()
+                try:
+                    line = raw.decode('utf-8', errors='replace').strip()
+                except Exception:
+                    line = str(raw)
+
+                if not line:
+                    continue
+
+                l = line.strip()
+                if len(l) == 0:
+                    continue
+
+                colon = l.find(':')
+                if colon <= 0:
+                    # skip malformed
+                    continue
+                prefix = l[:colon].upper()
+                payload = l[colon+1:]
+
+                if prefix == 'G':
+                    # G:data,time
+                    parts = [p.strip() for p in payload.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
+                    if len(parts) == 1:
+                        parts = payload.split()
+                    if len(parts) < 2:
+                        print(f"Skipping malformed G payload: '{payload}'")
+                        continue
+                    try:
+                        val = float(parts[0])
+                        tstamp = float(parts[1])
+                    except ValueError:
+                        print(f"Skipping unparsable G line: '{line}'")
+                        continue
+                    g_vals.append(val)
+                    g_times.append(tstamp)
+
+                elif prefix == 'S':
+                    # S:data1,data2,time
+                    parts = [p.strip() for p in payload.replace('\t', ' ').replace(';', ',').split(',') if p.strip()]
+                    if len(parts) == 1:
+                        parts = payload.split()
+                    if len(parts) < 3:
+                        print(f"Skipping malformed S payload: '{payload}'")
+                        continue
+                    try:
+                        s1 = float(parts[0])
+                        s2 = float(parts[1])
+                        tstamp = float(parts[2])
+                    except ValueError:
+                        print(f"Skipping unparsable S line: '{line}'")
+                        continue
+                    s1_vals.append(s1)
+                    s2_vals.append(s2)
+                    s_times.append(tstamp)
+
+                # ignore other prefixes here
+
+        except KeyboardInterrupt:
+            print('\nInterrupted by user, stopping capture.')
+        finally:
+            if opened_here:
+                try:
+                    ser.close()
+                except Exception:
+                    pass
+
+        # Save CSV with columns: [G, G_time, S1, S2, S_time]
+        try:
+            with open(csv_path, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['G', 'G_time', 'S1', 'S2', 'S_time'])
+                max_len = max(len(g_vals), len(s1_vals), len(s2_vals), len(s_times))
+                for i in range(max_len):
+                    row = []
+                    if i < len(g_vals):
+                        row.append(f"{g_vals[i]:.6f}")
+                        row.append(f"{g_times[i]:.6f}")
+                    else:
+                        row.extend(['', ''])
+
+                    if i < len(s1_vals):
+                        row.append(f"{s1_vals[i]:.6f}")
+                    else:
+                        row.append('')
+
+                    if i < len(s2_vals):
+                        row.append(f"{s2_vals[i]:.6f}")
+                    else:
+                        row.append('')
+
+                    if i < len(s_times):
+                        row.append(f"{s_times[i]:.6f}")
+                    else:
+                        row.append('')
+
+                    writer.writerow(row)
+        except Exception as e:
+            print(f"Failed to write GS CSV: {e}")
+
+        print(f"Saved GS CSV to: {csv_path}")
+        return (np.array(g_times), np.array(g_vals), np.array(s1_vals), np.array(s2_vals), np.array(s_times), csv_path)
+
+    g_times, g_vals, s1_vals, s2_vals, s_times, csv = read_GS_and_save_csv(port)
+    print('Done. CSV saved to:', csv)
 
 
 if __name__ == '__main__':
