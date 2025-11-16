@@ -1,20 +1,18 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
 #include <QuadEncoder.h>
-#include <Adafruit_NAU7802.h>
-#include <Wire.h>
 
-#define FREQUENCY_1 0.1f                  // Hz
-#define FREQUENCY_2 5.0f                 // Hz
-#define AMPLITUDE 865                 // Ticks
-#define SWEEP_LENGTH 50.0f              // s
+#define FREQUENCY_1 1.0f                  // Hz
+#define FREQUENCY_2 15.0f                 // Hz
+#define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
+#define INITIAL_AMPLITUDE 2.0f           // mm
+#define FINAL_AMPLITUDE 1.0f             // mm
+#define SWEEP_LENGTH 120.0f              // s
 #define CENTER 8212
 
-#define LC_CAL 0.012          // Load cell callibration (nextowns/tick) // NAU [0.00004893370999f] 
 #define LC_PIN 14
-#define LC_CAL_CYCLES 500
-
-
+#define LC_CAL  0.0012f // 0.012f           // Load cell callibration (nextowns/tick)
+#define NUM_FILTER_SAMPLES 40
 
 
 /*////////
@@ -22,11 +20,10 @@
  *////////
 FlexCAN_T4        <CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 QuadEncoder       encoder1(3, 7, 5);  // ENC1 using pins 0 (A) and 1 (B)
-Adafruit_NAU7802  nau;
 
+IntervalTimer     LCBufferTimer;
 IntervalTimer     servoTimer;
-IntervalTimer     encoderTimer;
-IntervalTimer     loadcellTimer;
+IntervalTimer     sensorsTimer;
 
 
 /*////////
@@ -36,15 +33,19 @@ uint16_t          number;
 unsigned long     start;
 unsigned long     start_micros;
 bool started = false;
-float lc_offset;
+float tau_inv = -log(FINAL_AMPLITUDE/INITIAL_AMPLITUDE) / SWEEP_LENGTH; // Inverse time constant of exponential decay
+
+long lc_sum = 0;
+uint16_t lc_index = 0;
+uint16_t lc_samples[NUM_FILTER_SAMPLES];
 
 /*////////
  * Function Prototypes
  *////////
-void readEncoder();
+void readSensors();
 void printMessage(const CAN_message_t &m);
 void commandServo();
-void readLoadCell();
+void updateBuffer();
 
 
 /*////////
@@ -64,16 +65,16 @@ void setup() {
   can3.setBaudRate(1000000); // 1 Mbps
 
   /*////////
-   * Config the load cell
+   * Config the load cell amp
    */////////
-   pinMode(LC_PIN, INPUT);
-   analogReadResolution(12);  // 12-bit ADC (0–4095)
 
-  for (int i = 0; i < LC_CAL_CYCLES; i++) {
-    lc_offset += analogRead(LC_PIN);
-    delay(1);
+  // Analog read pin
+  pinMode(LC_PIN, INPUT);
+
+  // Initialize buffer
+  for (int i = 0; i < NUM_FILTER_SAMPLES; i++) {
+    lc_samples[i] = analogRead(LC_PIN);
   }
-  lc_offset = lc_offset / (float)LC_CAL_CYCLES;
 
 
   /*////////
@@ -104,11 +105,11 @@ void setup() {
   started = true;
 
   /*////////
-   * Start the control and DAQ timers
+   * Start the DAQ timers
    *////////
-  encoderTimer.begin(readEncoder, 3125);  // 320 Hz timer
-  delayMicroseconds(50);
-  loadcellTimer.begin(readLoadCell, 3125);  // Read load cell at 320 Hz
+  sensorsTimer.begin(readSensors, 2000);  // 500 Hz timer
+  LCBufferTimer.begin(updateBuffer, 50);      // 20 kHz buffer update
+
   
   
 }
@@ -128,15 +129,6 @@ void loop() {
 
   }
 
-  // Receive any incoming CAN messages and print them to Serial
-  /*
-  CAN_message_t msg;
-  if (can3.read(msg)) {
-    noInterrupts();
-    printMessage(msg);
-    interrupts();
-  }
-    */
 }
 
 
@@ -144,33 +136,31 @@ void loop() {
  * Function declarations
  *////////
 
-void printMessage(const CAN_message_t &m) {
-  // print telemetry data and timestamp
+void updateBuffer(){
+  uint16_t newSample = analogRead(LC_PIN);
+  lc_sum -= lc_samples[lc_index];
+  lc_samples[lc_index] = newSample;
 
-  if (m.len >= 2) {
-    uint16_t value = (uint16_t)m.buf[0] | ((uint16_t)m.buf[1] << 8); // low byte first
-  // Label CAN telemetry as load-cell formatted 'LC:data,time'
-  Serial.print("LC:");
-  Serial.print(value);           // decimal raw value
+  // Increment and wrap index
+  lc_index++;
+  if (lc_index >= NUM_FILTER_SAMPLES) lc_index = 0;
+
+  lc_sum += newSample;
+}
+
+void readSensors(){
+  Serial.print("S:");
+
+  // Compute averaged loadcell reading
+  Serial.print((lc_sum / NUM_FILTER_SAMPLES) * LC_CAL, 4);
   Serial.print(",");
-  Serial.println((micros() - start_micros)/1000000.0f, 6);
-  } else {
-    Serial.println("  (not enough data for 16-bit)");
-  }
-}
 
-void readLoadCell(){
-  Serial.print("LC: ");
-  Serial.print((analogRead(LC_PIN) - lc_offset)*LC_CAL);
-  Serial.print(", ");
-  Serial.println((micros()-start_micros)/1000000.0f, 6);
-}
-
-void readEncoder(){
-  Serial.print("E:");
+  // Sample the encoder
   Serial.print(encoder1.read()*1e-3, 3);
-  Serial.print(", ");
-  Serial.println((micros() - start_micros)/1000000.0f, 6);
+  Serial.print(",");
+
+  // Time stamp
+  Serial.println((micros()-start_micros)/1000000.0f, 6);
 }
 
 void commandServo(){
@@ -180,13 +170,13 @@ void commandServo(){
   } else {
 
     float t = (millis() - start) / 1000.0f; // seconds
-    float value = CENTER + AMPLITUDE *
-        sinf(2.0f * PI * FREQUENCY_1 * SWEEP_LENGTH * ((pow(FREQUENCY_2/FREQUENCY_1, t/SWEEP_LENGTH) - 1) / (log(FREQUENCY_2/FREQUENCY_1))));
+    float value = CENTER + INITIAL_AMPLITUDE_TICKS * exp(-t*tau_inv) *
+      sinf(2.0f * PI * FREQUENCY_1 * SWEEP_LENGTH * ((pow(FREQUENCY_2/FREQUENCY_1, t/SWEEP_LENGTH) - 1) / (log(FREQUENCY_2/FREQUENCY_1))));
       number = (uint16_t)roundf(value);
 
-    Serial.print("GND:");
+    Serial.print("G:");
     Serial.print(number);
-    Serial.print(", ");
+    Serial.print(",");
     Serial.println((micros() - start_micros)/1000000.0f, 6);
   }
 
@@ -197,6 +187,5 @@ void commandServo(){
   tx.buf[1] = (number >> 8) & 0xFF; // High byte
   can3.write(tx);
 
-  
 
 }
