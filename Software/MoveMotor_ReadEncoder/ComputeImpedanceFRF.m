@@ -1,7 +1,7 @@
 %% reading in the time domain data and plotting it
 clc,clear
 
-filename = "MoveMotorTelemetry_20251111_144443.csv";
+filename = "Resonance_MoveMotorTelemetry_20251111_144443.csv";
 path = "outputs/" + filename;
 D = readmatrix(path);
 
@@ -10,6 +10,12 @@ dt = diff(time);
 
 pos = rmmissing(D(:,5));
 force = rmmissing(D(:,3));
+
+% time = rmmissing(D(:,5));
+% dt = diff(time);
+% 
+% pos = rmmissing(D(:,4));
+% force = -1*rmmissing(D(:,3));
 % force = lowpass(force, 30, 1/mean(diff(time)));
 
 figure(6);
@@ -68,23 +74,53 @@ spectrogram(y, Nblk, floor(Nblk*NoPCToverlap),Nblk*2,fs)
 
 %%
 
-xlims = [0.1, 30];
+xlims = [0.1, 50];
+ax_fs = 16;         % Font size of ticks
+lbl_fs = 18;        % Label font size
+
+alpha = 0.0071; % s time dealy of the 
+jw = (1i*ws);
+
+% Data formatted for plotting
+f = ws/(2*pi); % convert frequency to radians
+H1_mag = squeeze(abs(exp(jw*alpha).*H1(1,:)./jw));
+H1_ang = squeeze(angle(exp(jw*alpha).*H1(1,:)./jw)*(180/pi));
+
+f_l = 1;   % Lower index limit to be plotted
+f_u = 64;  % Upper index limit to be plotted
+
+fm_l = 0.5; % Lower measured frequency
+fm_u = 20;  % Upper measured frequency
 
 figure(7);clf
 subplot(3,1,1)
-loglog(ws/(2*pi),squeeze(abs(H1(1,:)./(1i*ws))),'LineWidth',2);grid on; hold on
+semilogx(f(f_l:f_u),mag2db(H1_mag(f_l:f_u)),'LineWidth',2);grid on; hold on;
+loglog([fm_l, fm_l], [-200, 200], '--k', 'LineWidth', 0.5)
+loglog([fm_u, fm_u], [-200, 200], '--k', 'LineWidth', 0.5)
+ax = gca; ax.FontSize = ax_fs;
 xlim(xlims)
-ylabel("|F(w)/V(w)|")
+ylim([-10^2, 0])
+ylabel("|F(\itf\rm)/V(\itf\rm)| (db)", 'FontSize', lbl_fs)
+title("Mass-Spring System Impedance", 'FontSize', 20)
 
 subplot(3,1,2)
-semilogx(ws/(2*pi),squeeze(angle(H1(1,:)./(1i*ws))*(180/pi)),'LineWidth',2);grid on; hold on
+semilogx(f(f_l:f_u),H1_ang(f_l:f_u),'LineWidth',2);grid on; hold on
+semilogx([fm_l, fm_l], [-200, 200], '--k', 'LineWidth', 0.5)
+semilogx([fm_u, fm_u], [-200, 200], '--k', 'LineWidth', 0.5)
+ax = gca; ax.FontSize = ax_fs;
 xlim(xlims)
-ylabel("Phase (°)")
+ylabel("Phase (°)", 'FontSize', lbl_fs)
 ylim([-200, 200])
 yticks([-180, -90, 0, 90, 180])
 
 subplot(3,1,3)
-semilogx(ws/(2*pi),MCOH1,'LineWidth',2);grid on; hold on
+semilogx(f(f_l:f_u),MCOH1(f_l:f_u),'LineWidth',2);grid on; hold on
+semilogx([fm_l, fm_l], [-200, 200], '--k', 'LineWidth', 0.5)
+semilogx([fm_u, fm_u], [-200, 200], '--k', 'LineWidth', 0.5)
+ax = gca; ax.FontSize = ax_fs;
 xlim(xlims)
-ylabel("H2 Coherence")
-xlabel("Frequency (Hz)")
+ylim([0, 1])
+ylabel("Coherence", 'FontSize', lbl_fs)
+xlabel("Frequency (Hz)", "FontSize", 17)
+
+
