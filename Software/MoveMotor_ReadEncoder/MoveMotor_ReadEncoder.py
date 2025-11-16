@@ -28,7 +28,7 @@ from math import ceil
 BAUD_RATE = 115200
 INACTIVITY_TIMEOUT = 5.0  # seconds
 # Conversion factors
-LOADCELL_CONVERSION = 1.0
+LOADCELL_CONVERSION = 0.0012
 SERVO_CONVERSION = 5.782369e-4  # mm/ticks
 
 

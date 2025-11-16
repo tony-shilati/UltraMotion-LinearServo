@@ -11,7 +11,6 @@
 #define CENTER 8212
 
 #define LC_PIN 14
-#define LC_CAL  0.0012f // 0.012f           // Load cell callibration (nextowns/tick)
 #define NUM_FILTER_SAMPLES 40
 
 
@@ -151,8 +150,10 @@ void updateBuffer(){
 void readSensors(){
   Serial.print("S:");
 
+
+
   // Compute averaged loadcell reading
-  Serial.print((lc_sum / NUM_FILTER_SAMPLES) * LC_CAL, 4);
+  Serial.print((lc_sum / NUM_FILTER_SAMPLES), 4);
   Serial.print(",");
 
   // Sample the encoder
