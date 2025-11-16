@@ -148,20 +148,26 @@ void updateBuffer(){
 }
 
 void readSensors(){
+  // Collect sensor readings
+  uint32_t lc_reading = lc_sum / NUM_FILTER_SAMPLES;
+  float enc_reading = encoder1.read();
+
+  // Timestampe the sensor readings
+  unsigned long sensors_time = micros();
+
+  // Indicate sensor readings
   Serial.print("S:");
 
-
-
-  // Compute averaged loadcell reading
-  Serial.print((lc_sum / NUM_FILTER_SAMPLES), 4);
+  // Print the load cell reading
+  Serial.print(lc_reading, 4);
   Serial.print(",");
 
-  // Sample the encoder
-  Serial.print(encoder1.read()*1e-3, 3);
+  // Print the encoder reading
+  Serial.print(enc_reading*1e-3, 3);
   Serial.print(",");
 
-  // Time stamp
-  Serial.println((micros()-start_micros)/1000000.0f, 6);
+  // Print the timestamp
+  Serial.println((sensors_time-start_micros)/1000000.0f, 6);
 }
 
 void commandServo(){
