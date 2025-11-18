@@ -2,13 +2,13 @@
 #include <math.h>
 #include <QuadEncoder.h>
 
-#define FREQUENCY_1 1.0f                  // Hz
-#define FREQUENCY_2 15.0f                 // Hz
+#define FREQUENCY_1 0.1f                  // Hz
+#define FREQUENCY_2 20.0f                 // Hz
 #define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
 #define INITIAL_AMPLITUDE 2.0f            // mm
 #define FINAL_AMPLITUDE 1.0f              // mm
-#define SWEEP_LENGTH 120.0f               // s
+#define SWEEP_LENGTH 60.0f               // s
 #define LC_PIN 14
 #define NUM_FILTER_SAMPLES 40
 
