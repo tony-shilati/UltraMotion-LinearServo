@@ -1,16 +1,19 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
 #include <QuadEncoder.h>
+#include <Adafruit_NAU7802.h>
+#include <Wire.h>
 
-#define FREQUENCY_1 0.1f                  // Hz
+#define FREQUENCY_1 0.50f                  // Hz
 #define FREQUENCY_2 20.0f                 // Hz
 #define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
-#define INITIAL_AMPLITUDE 2.0f            // mm
-#define FINAL_AMPLITUDE 1.0f              // mm
+#define INITIAL_AMPLITUDE 1.75f            // mm
+#define FINAL_AMPLITUDE 0.5f              // mm
 #define SWEEP_LENGTH 60.0f               // s
 #define LC_PIN 14
 #define NUM_FILTER_SAMPLES 40
+#define NAU_CAL 0.00001125444 // 1kg // 0.00004893370999f 10 kg          // Load cell callibration (nextowns/tick)
 
 
 /*////////
@@ -18,8 +21,8 @@
  *////////
 FlexCAN_T4        <CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 QuadEncoder       encoder1(3, 7, 5);  // ENC1 using pins 0 (A) and 1 (B)
+Adafruit_NAU7802  nau;
 
-IntervalTimer     LCBufferTimer;
 IntervalTimer     servoTimer;
 IntervalTimer     sensorsTimer;
 
@@ -43,7 +46,6 @@ uint16_t lc_samples[NUM_FILTER_SAMPLES];
 void readSensors();
 void printMessage(const CAN_message_t &m);
 void commandServo();
-void updateBuffer();
 
 
 /*////////
@@ -54,7 +56,6 @@ void setup() {
   while (!Serial) {
     delay(10);
   }
-  Serial.println("Ready to go");
   
   /*////////
    * Config the linear servo comms
@@ -65,16 +66,38 @@ void setup() {
   /*////////
    * Config the load cell amp
    */////////
+   Wire.begin();                        // Initialize I2C
+  Wire.setClock(400000);              // Use I2C (400 kHz)
 
-  // Analog read pin
-  pinMode(LC_PIN, INPUT);
-
-  // Initialize buffer
-  for (int i = 0; i < NUM_FILTER_SAMPLES; i++) {
-    lc_samples[i] = analogRead(LC_PIN);
+  if (!nau.begin(&Wire)) {
+    Serial.println("NAU7802 not found!");
+    while (1) {}
   }
 
 
+  nau.setLDO(NAU7802_3V3);             // Match Teensy 3.3V supply
+  nau.setGain(NAU7802_GAIN_128);       // Max gain for small load cell signals
+  nau.setRate(NAU7802_RATE_320SPS);    // Maximum sample rate
+
+  // Take 500 readings to flush out readings
+  for (uint16_t i=0; i<500; i++) {
+    while (! nau.available()) delay(1);
+    nau.read();
+  }
+
+  while (! nau.calibrate(NAU7802_CALMOD_INTERNAL)) {
+    delay(1000);
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+
+  while (! nau.calibrate(NAU7802_CALMOD_OFFSET)) {
+    delay(1000);
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+
+  Serial.println("Ready to go");
   /*////////
    * Start the linear servo commands
    *////////
@@ -105,8 +128,8 @@ void setup() {
   /*////////
    * Start the DAQ timers
    *////////
-  sensorsTimer.begin(readSensors, 2000);  // 500 Hz timer
-  LCBufferTimer.begin(updateBuffer, 50);      // 20 kHz buffer update
+  sensorsTimer.begin(readSensors, 3125);  // 500 Hz timer
+  delayMicroseconds(150);
 
   
   
@@ -134,21 +157,9 @@ void loop() {
  * Function declarations
  *////////
 
-void updateBuffer(){
-  uint16_t newSample = analogRead(LC_PIN);
-  lc_sum -= lc_samples[lc_index];
-  lc_samples[lc_index] = newSample;
-
-  // Increment and wrap index
-  lc_index++;
-  if (lc_index >= NUM_FILTER_SAMPLES) lc_index = 0;
-
-  lc_sum += newSample;
-}
-
 void readSensors(){
   // Collect sensor readings
-  uint32_t lc_reading = lc_sum / NUM_FILTER_SAMPLES;
+  double lc_reading = nau.read()*NAU_CAL;
   float enc_reading = encoder1.read();
 
   // Timestampe the sensor readings
