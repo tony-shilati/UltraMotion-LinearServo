@@ -1,7 +1,7 @@
 close all, clear, clc
 
 % Load data from a CSV file
-filename = "Resonance_MoveMotorTelemetry_20251111_144443.csv";
+filename = "Lukes_Finger_0-20Hz_GS_20251118_111220.csv";
 path = "outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
@@ -11,35 +11,35 @@ labels_font_size = 20; % Font size of the axes
 
 %% Load the data - GS
 
-% %Command
-% cmd_signal = rmmissing(data(:, 1)); cmd_signal = cmd_signal - mean(cmd_signal);
-% cmd_time = rmmissing(data(:, 2));
-% %cmd_signal=tukeywin(length(cmd_signal), 0.25).*cmd_signal;
-% 
-% % Load Cell
-% tel_signal = 100*rmmissing(data(:, 3)); tel_signal = tel_signal - mean(tel_signal);
-% tel_time = rmmissing(data(:, 5));
-% %tel_signal = lowpass(tel_signal, 30, 1/mean(diff(tel_time)));
-% 
-% % Encoder
-% enc_signal = rmmissing(data(:, 4));
-% enc_time = rmmissing(data(:, 5));
-
-%% Load the data - GTE
-
-% Command
+%Command
 cmd_signal = rmmissing(data(:, 1)); cmd_signal = cmd_signal - mean(cmd_signal);
 cmd_time = rmmissing(data(:, 2));
 %cmd_signal=tukeywin(length(cmd_signal), 0.25).*cmd_signal;
 
 % Load Cell
-tel_signal = rmmissing(data(:, 3)); tel_signal = tel_signal - mean(tel_signal);
-tel_time = rmmissing(data(:, 4));
+tel_signal = 100*rmmissing(data(:, 3)); tel_signal = tel_signal - mean(tel_signal);
+tel_time = rmmissing(data(:, 5));
 %tel_signal = lowpass(tel_signal, 30, 1/mean(diff(tel_time)));
 
 % Encoder
-enc_signal = rmmissing(data(:, 5));
-enc_time = rmmissing(data(:, 6));
+enc_signal = rmmissing(data(:, 4));
+enc_time = rmmissing(data(:, 5));
+
+%% Load the data - GTE
+
+% % Command
+% cmd_signal = rmmissing(data(:, 1)); cmd_signal = cmd_signal - mean(cmd_signal);
+% cmd_time = rmmissing(data(:, 2));
+% %cmd_signal=tukeywin(length(cmd_signal), 0.25).*cmd_signal;
+% 
+% % Load Cell
+% tel_signal = rmmissing(data(:, 3)); tel_signal = tel_signal - mean(tel_signal);
+% tel_time = rmmissing(data(:, 4));
+% %tel_signal = lowpass(tel_signal, 30, 1/mean(diff(tel_time)));
+% 
+% % Encoder
+% enc_signal = rmmissing(data(:, 5));
+% enc_time = rmmissing(data(:, 6));
 
 %% Plot the sampling distribution
 cmd_sample_dist = diff(cmd_time);
@@ -127,11 +127,11 @@ z_cmd = fftshift(P1_cmd);
 figure(4)
 % subplot(2,1,1)
 loglog(f_cmd, P1_cmd, "LineWidth", 1.5), hold on
-%loglog(f_tel, P1_tel, "LineWidth", 1.5)
-%loglog(f_enc, P1_enc, "LineWidth", 1.5)
+loglog(f_tel, P1_tel, "LineWidth", 1.5)
+loglog(f_enc, P1_enc, "LineWidth", 1.5)
 ax = gca; ax.FontSize=ticks_font_size;
 ylabel("Amplitude", FontSize=labels_font_size)
-%legend("Commanded", "Load Cell", "Linear Encoder")
+legend("Commanded", "Load Cell", "Linear Encoder")
 
 grid on
 xlim([0.05, min([0.5*fs_cmd, 0.5*fs_tel, 0.5*fs_enc])])

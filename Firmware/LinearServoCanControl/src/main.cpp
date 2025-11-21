@@ -4,13 +4,13 @@
 #include <Adafruit_NAU7802.h>
 #include <Wire.h>
 
-#define FREQUENCY_1 0.50f                  // Hz
+#define FREQUENCY_1 0.1f                  // Hz
 #define FREQUENCY_2 20.0f                 // Hz
 #define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
 #define INITIAL_AMPLITUDE 1.75f            // mm
 #define FINAL_AMPLITUDE 0.5f              // mm
-#define SWEEP_LENGTH 60.0f               // s
+#define SWEEP_LENGTH 420.0f               // s
 #define LC_PIN 14
 #define NUM_FILTER_SAMPLES 40
 #define NAU_CAL 0.00001125444 // 1kg // 0.00004893370999f 10 kg          // Load cell callibration (nextowns/tick)

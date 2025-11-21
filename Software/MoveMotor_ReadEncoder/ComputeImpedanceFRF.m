@@ -1,22 +1,22 @@
 %% reading in the time domain data and plotting it
 clc,clear
 
-filename = "Resonance_MoveMotorTelemetry_20251111_144443.csv";
+filename = "Lukes_Finger_0-20Hz_GS_20251118_111220.csv";
 path = "outputs/" + filename;
 D = readmatrix(path);
 
-time = rmmissing(D(:,6));
-dt = diff(time);
-
-pos = rmmissing(D(:,5));
-force = rmmissing(D(:,3));
-
-% time = rmmissing(D(:,5));
+% time = rmmissing(D(:,6));
 % dt = diff(time);
 % 
-% pos = rmmissing(D(:,4));
-% force = -1*rmmissing(D(:,3));
-% force = lowpass(force, 30, 1/mean(diff(time)));
+% pos = rmmissing(D(:,5));
+% force = rmmissing(D(:,3));
+
+time = rmmissing(D(:,5));
+dt = diff(time);
+
+pos = rmmissing(D(:,4)) * 10^-3;
+force = -1*rmmissing(D(:,3));
+force = lowpass(force, 30, 1/mean(diff(time)));
 
 figure(6);
 subplot(2,1,1);
@@ -83,23 +83,23 @@ jw = (1i*ws);
 
 % Data formatted for plotting
 f = ws/(2*pi); % convert frequency to radians
-H1_mag = squeeze(abs(exp(jw*alpha).*H1(1,:)./jw));
-H1_ang = squeeze(angle(exp(jw*alpha).*H1(1,:)./jw)*(180/pi));
+H1_mag = squeeze(mag2db(abs(exp(jw*alpha).*H1(1,:)./(1i*ws))));
+H1_ang = squeeze(angle(exp(jw*alpha).*H1(1,:)./(1i*ws))*(180/pi));
 
 f_l = 1;   % Lower index limit to be plotted
-f_u = 64;  % Upper index limit to be plotted
+f_u = 100;  % Upper index limit to be plotted
 
 fm_l = 0.5; % Lower measured frequency
 fm_u = 20;  % Upper measured frequency
 
-figure(7);clf
+figure(2);%clf
 subplot(3,1,1)
-semilogx(f(f_l:f_u),mag2db(H1_mag(f_l:f_u)),'LineWidth',2);grid on; hold on;
+semilogx(f(f_l:f_u),H1_mag(f_l:f_u),'LineWidth',2);grid on; hold on;
 loglog([fm_l, fm_l], [-200, 200], '--k', 'LineWidth', 0.5)
 loglog([fm_u, fm_u], [-200, 200], '--k', 'LineWidth', 0.5)
 ax = gca; ax.FontSize = ax_fs;
 xlim(xlims)
-ylim([-10^2, 0])
+ylim([-10, 50])
 ylabel("|F(\itf\rm)/V(\itf\rm)| (db)", 'FontSize', lbl_fs)
 title("Mass-Spring System Impedance", 'FontSize', 20)
 
