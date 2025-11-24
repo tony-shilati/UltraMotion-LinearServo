@@ -1,7 +1,7 @@
 close all, clear, clc
 
 % Load data from a CSV file
-filename = "Lukes_Finger_0-20Hz_GS_20251118_111220.csv";
+filename = "Tony_Fingerpad_0.1_to_40Hz_20251124_095835.csv";
 path = "outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
@@ -208,30 +208,4 @@ function [P1, f, Fs] = normalized_fft(signal, time)
     P1(2:end-1) = 2*P1(2:end-1); % Correct the amplitude
     f = Fs*(0:(L/2))/L; % Frequency vector
 
-end
-
-function alignTicks(ax)
-    % --- Alignment Logic ---
-    % Get the left y-axis tick locations and limits
-    left_yticks = ax.YTick;
-    left_ylim = ax.YLim;
-    
-    % Get the right y-axis limits
-    right_ylim = ax.YAxis(2).Limits;
-    
-    % Check if left_ylim is not equal to right_ylim to avoid division by zero
-    if left_ylim(1) ~= left_ylim(2) && right_ylim(1) ~= right_ylim(2)
-        % Calculate the proportional positions of the left ticks within their limits
-        % Formula: (tick_value - lower_limit) / (upper_limit - lower_limit)
-        tick_proportions = (left_yticks - left_ylim(1)) ./ (left_ylim(2) - left_ylim(1));
-        
-        % Calculate the corresponding tick values for the right axis 
-        % using the same proportions within its limits
-        right_yticks = tick_proportions .* (right_ylim(2) - right_ylim(1)) + right_ylim(1);
-        
-        % Set the calculated tick values for the right y-axis
-        ax.YAxis(2).Ticks = right_yticks;
-    else
-        warning('Y-axis limits are equal, tick alignment cannot be performed.');
-    end
 end
