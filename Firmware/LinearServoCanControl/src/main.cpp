@@ -4,15 +4,13 @@
 #include <Adafruit_NAU7802.h>
 #include <Wire.h>
 
-#define FREQUENCY_1 0.1f                  // Hz
-#define FREQUENCY_2 20.0f                 // Hz
+#define FREQUENCY_1 0.10f                  // Hz
+#define FREQUENCY_2 30.0f                 // Hz
 #define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
-#define INITIAL_AMPLITUDE 1.75f            // mm
-#define FINAL_AMPLITUDE 0.5f              // mm
-#define SWEEP_LENGTH 420.0f               // s
-#define LC_PIN 14
-#define NUM_FILTER_SAMPLES 40
+#define INITIAL_AMPLITUDE 1.5f            // mm
+#define FINAL_AMPLITUDE 0.25f              // mm
+#define SWEEP_LENGTH 360.0f               // s
 #define NAU_CAL 0.00001125444 // 1kg // 0.00004893370999f 10 kg          // Load cell callibration (nextowns/tick)
 
 
@@ -38,7 +36,6 @@ float tau_inv = -log(FINAL_AMPLITUDE/INITIAL_AMPLITUDE) / SWEEP_LENGTH; // Inver
 
 long lc_sum = 0;
 uint16_t lc_index = 0;
-uint16_t lc_samples[NUM_FILTER_SAMPLES];
 
 /*////////
  * Function Prototypes
