@@ -1,7 +1,7 @@
 close all, clear, clc
 
 % Load data from a CSV file
-filename = "Tony_Fingerpad_0.1_to_40Hz_20251124_095835.csv";
+filename = "Tony_AntiBacklash_0.1_to_35Hz_1kg_20251126_135119.csv";
 path = "outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
