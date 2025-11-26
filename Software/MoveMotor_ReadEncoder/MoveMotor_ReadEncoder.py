@@ -23,6 +23,7 @@ from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from math import ceil
+import re
 
 # Configuration
 BAUD_RATE = 115200
@@ -30,6 +31,7 @@ INACTIVITY_TIMEOUT = 5.0  # seconds
 # Conversion factors
 LOADCELL_CONVERSION = 0.0012
 SERVO_CONVERSION = 5.782369e-4  # mm/ticks
+LC_RATING = 1      #kg
 
 
 def find_teensy_port():
@@ -173,7 +175,12 @@ def read_from_serial(port=None, baud=BAUD_RATE, inactivity_timeout=INACTIVITY_TI
                 pass
 
     # Write GS CSV with columns: [G, G_time, S1, S2, S_time]
-    gs_csv_path = os.path.join(out_dir, f"MoveMotor_GS_{timestamp}.csv")
+    usr_title = input("Enter title for CSV filename (default 'MoveMotorTelemetry'): ").strip()
+    if not usr_title:
+        usr_title = 'MoveMotorTelemetry'
+    # sanitize title for a safe filename (replace disallowed chars with underscore)
+    usr_title = re.sub(r'[^A-Za-z0-9._-]+', '_', usr_title)
+    gs_csv_path = os.path.join(out_dir, f"{usr_title}_{LC_RATING}kg_{timestamp}.csv")
     try:
         with open(gs_csv_path, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
