@@ -5,7 +5,7 @@
 #include <Wire.h>
 
 #define FREQUENCY_1 0.10f                  // Hz
-#define FREQUENCY_2 30.0f                 // Hz
+#define FREQUENCY_2 35.0f                 // Hz
 #define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
 #define INITIAL_AMPLITUDE 1.5f            // mm
