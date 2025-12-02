@@ -3,15 +3,17 @@
 #include <QuadEncoder.h>
 #include <Adafruit_NAU7802.h>
 #include <Wire.h>
+#include <ADS1256.h>
 
+#define USE_SPI SPI1
 #define FREQUENCY_1 0.10f                  // Hz
-#define FREQUENCY_2 35.0f                 // Hz
+#define FREQUENCY_2 20.0f                 // Hz
 #define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
 #define INITIAL_AMPLITUDE 1.5f            // mm
 #define FINAL_AMPLITUDE 0.25f              // mm
 #define SWEEP_LENGTH 360.0f               // s
-#define NAU_CAL 0.00001125444 // 1kg // 0.00004893370999f 10 kg          // Load cell callibration (nextowns/tick)
+#define LC_CAL 24.5f // Kg/V
 
 
 /*////////
@@ -19,10 +21,10 @@
  *////////
 FlexCAN_T4        <CAN3, RX_SIZE_256, TX_SIZE_16> can3;
 QuadEncoder       encoder1(3, 7, 5);  // ENC1 using pins 0 (A) and 1 (B)
-Adafruit_NAU7802  nau;
 
 IntervalTimer     servoTimer;
 IntervalTimer     sensorsTimer;
+ADS1256           ADS(38, ADS1256::PIN_UNUSED, 37, 0, 2.500, &USE_SPI); //DRDY, RESET, SYNC(PDWN), CS, VREF(float).    //Teensy 4.0 - OK
 
 
 /*////////
@@ -63,38 +65,12 @@ void setup() {
   /*////////
    * Config the load cell amp
    */////////
-   Wire.begin();                        // Initialize I2C
-  Wire.setClock(400000);              // Use I2C (400 kHz)
-
-  if (!nau.begin(&Wire)) {
-    Serial.println("NAU7802 not found!");
-    while (1) {}
-  }
-
-
-  nau.setLDO(NAU7802_3V3);             // Match Teensy 3.3V supply
-  nau.setGain(NAU7802_GAIN_128);       // Max gain for small load cell signals
-  nau.setRate(NAU7802_RATE_320SPS);    // Maximum sample rate
-
-  // Take 500 readings to flush out readings
-  for (uint16_t i=0; i<500; i++) {
-    while (! nau.available()) delay(1);
-    nau.read();
-  }
-
-  while (! nau.calibrate(NAU7802_CALMOD_INTERNAL)) {
-    delay(1000);
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, HIGH);
-  }
-
-  while (! nau.calibrate(NAU7802_CALMOD_OFFSET)) {
-    delay(1000);
-    pinMode(LED_BUILTIN, OUTPUT);
-    digitalWrite(LED_BUILTIN, HIGH);
-  }
-
+  ADS.InitializeADC();
+  ADS.setPGA(PGA_1);
+  ADS.setMUX(DIFF_0_1);
+  ADS.setDRATE(DRATE_1000SPS);
   Serial.println("Ready to go");
+
   /*////////
    * Start the linear servo commands
    *////////
@@ -125,9 +101,8 @@ void setup() {
   /*////////
    * Start the DAQ timers
    *////////
-  sensorsTimer.begin(readSensors, 3125);  // 500 Hz timer
-  delayMicroseconds(150);
-
+  sensorsTimer.begin(readSensors, 1000);  // 1000 Hz timer
+  ADS.sendDirectCommand(SELFCAL);
   
   
 }
@@ -139,6 +114,7 @@ void setup() {
 void loop() {
   if ((millis() - start) > SWEEP_LENGTH * 1000){
     noInterrupts();
+    ADS.stopConversion();
     delay(3000);
 
     // Software reset of the teensy
@@ -156,7 +132,7 @@ void loop() {
 
 void readSensors(){
   // Collect sensor readings
-  double lc_reading = nau.read()*NAU_CAL;
+  double lc_reading = (ADS.convertToVoltage(ADS.readSingleContinuous()) - 1.75)*LC_CAL;
   float enc_reading = encoder1.read();
 
   // Timestampe the sensor readings
