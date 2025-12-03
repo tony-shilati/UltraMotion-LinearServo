@@ -6,14 +6,17 @@
 #include <ADS1256.h>
 
 #define USE_SPI SPI1
-#define FREQUENCY_1 0.10f                  // Hz
+#define FREQUENCY_1 0.10f                 // Hz
 #define FREQUENCY_2 20.0f                 // Hz
 #define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
-#define INITIAL_AMPLITUDE 1.5f            // mm
-#define FINAL_AMPLITUDE 0.25f              // mm
-#define SWEEP_LENGTH 360.0f               // s
-#define LC_CAL 24.5f // Kg/V
+#define INITIAL_AMPLITUDE 1.75f            // mm
+#define FINAL_AMPLITUDE 0.5f             // mm
+#define SWEEP_LENGTH 360.0f                // s
+#define LC_CAL 32.7f                     // Kg/V
+
+#define CS1 0
+#define DRDY 38
 
 
 /*////////
@@ -24,7 +27,7 @@ QuadEncoder       encoder1(3, 7, 5);  // ENC1 using pins 0 (A) and 1 (B)
 
 IntervalTimer     servoTimer;
 IntervalTimer     sensorsTimer;
-ADS1256           ADS(38, ADS1256::PIN_UNUSED, 37, 0, 2.500, &USE_SPI); //DRDY, RESET, SYNC(PDWN), CS, VREF(float).    //Teensy 4.0 - OK
+ADS1256           ADS(DRDY, ADS1256::PIN_UNUSED, 37, CS1, 2.500, &USE_SPI); //DRDY, RESET, SYNC(PDWN), CS, VREF(float).    //Teensy 4.0 - OK
 
 
 /*////////
@@ -69,6 +72,7 @@ void setup() {
   ADS.setPGA(PGA_1);
   ADS.setMUX(DIFF_0_1);
   ADS.setDRATE(DRATE_1000SPS);
+
   Serial.println("Ready to go");
 
   /*////////
@@ -101,8 +105,8 @@ void setup() {
   /*////////
    * Start the DAQ timers
    *////////
-  sensorsTimer.begin(readSensors, 1000);  // 1000 Hz timer
   ADS.sendDirectCommand(SELFCAL);
+  sensorsTimer.begin(readSensors, 1000);  // 1000 Hz timer
   
   
 }
@@ -132,25 +136,28 @@ void loop() {
 
 void readSensors(){
   // Collect sensor readings
-  double lc_reading = (ADS.convertToVoltage(ADS.readSingleContinuous()) - 1.75)*LC_CAL;
-  float enc_reading = encoder1.read();
+  if (!digitalReadFast(DRDY)){
+    long lc_reading = ADS.readSingleContinuous();
 
-  // Timestampe the sensor readings
-  unsigned long sensors_time = micros();
+    float enc_reading = encoder1.read();
 
-  // Indicate sensor readings
-  Serial.print("S:");
+    // Timestampe the sensor readings
+    unsigned long sensors_time = micros();
 
-  // Print the load cell reading
-  Serial.print(lc_reading, 4);
-  Serial.print(",");
+    // Indicate sensor readings
+    Serial.print("S:");
 
-  // Print the encoder reading
-  Serial.print(enc_reading*1e-3, 3);
-  Serial.print(",");
+    // Print the load cell reading
+    Serial.print((ADS.convertToVoltage(lc_reading) + 1.65f) * LC_CAL, 6);
+    Serial.print(",");
 
-  // Print the timestamp
-  Serial.println((sensors_time-start_micros)/1000000.0f, 6);
+    // Print the encoder reading
+    Serial.print(enc_reading*1e-3, 3);
+    Serial.print(",");
+
+    // Print the timestamp
+    Serial.println((sensors_time-start_micros)/1000000.0f, 6);
+  }
 }
 
 void commandServo(){
