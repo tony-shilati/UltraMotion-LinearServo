@@ -1,9 +1,7 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
 #include <QuadEncoder.h>
-#include <Adafruit_NAU7802.h>
-#include <Wire.h>
-#include <ADS1256.h>
+#include <SPI.h>
 
 #define USE_SPI SPI1
 #define FREQUENCY_1 0.10f                 // Hz
@@ -17,6 +15,7 @@
 
 #define CS1 0
 #define DRDY 38
+#define PDWN 37
 
 
 /*////////
@@ -27,8 +26,6 @@ QuadEncoder       encoder1(3, 7, 5);  // ENC1 using pins 0 (A) and 1 (B)
 
 IntervalTimer     servoTimer;
 IntervalTimer     sensorsTimer;
-ADS1256           ADS(DRDY, ADS1256::PIN_UNUSED, 37, CS1, 2.500, &USE_SPI); //DRDY, RESET, SYNC(PDWN), CS, VREF(float).    //Teensy 4.0 - OK
-
 
 /*////////
  * Global Vars
