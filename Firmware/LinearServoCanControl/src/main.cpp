@@ -1,7 +1,9 @@
 #include <FlexCAN_T4.h>
 #include <math.h>
 #include <QuadEncoder.h>
-#include <SPI.h>
+#include <Adafruit_NAU7802.h>
+#include <Wire.h>
+#include <ADS1256.h>
 
 #define USE_SPI SPI1
 #define FREQUENCY_1 0.10f                 // Hz
@@ -15,7 +17,6 @@
 
 #define CS1 0
 #define DRDY 38
-#define PDWN 37
 
 
 /*////////
@@ -26,6 +27,8 @@ QuadEncoder       encoder1(3, 7, 5);  // ENC1 using pins 0 (A) and 1 (B)
 
 IntervalTimer     servoTimer;
 IntervalTimer     sensorsTimer;
+ADS1256           ADS(DRDY, ADS1256::PIN_UNUSED, 37, CS1, 2.500, &USE_SPI); //DRDY, RESET, SYNC(PDWN), CS, VREF(float).    //Teensy 4.0 - OK
+
 
 /*////////
  * Global Vars
@@ -35,6 +38,7 @@ unsigned long     start;
 unsigned long     start_micros;
 bool started = false;
 float tau_inv = -log(FINAL_AMPLITUDE/INITIAL_AMPLITUDE) / SWEEP_LENGTH; // Inverse time constant of exponential decay
+byte outputBuffer[3];
 
 long lc_sum = 0;
 uint16_t lc_index = 0;
@@ -45,6 +49,8 @@ uint16_t lc_index = 0;
 void readSensors();
 void printMessage(const CAN_message_t &m);
 void commandServo();
+float lcRead();
+
 
 
 /*////////
@@ -61,16 +67,6 @@ void setup() {
    *////////
   can3.begin();
   can3.setBaudRate(1000000); // 1 Mbps
-
-  /*////////
-   * Config the load cell amp
-   */////////
-  ADS.InitializeADC();
-  ADS.setPGA(PGA_1);
-  ADS.setMUX(DIFF_0_1);
-  ADS.setDRATE(DRATE_1000SPS);
-
-  Serial.println("Ready to go");
 
   /*////////
    * Start the linear servo commands
@@ -94,6 +90,16 @@ void setup() {
   digitalWrite(11, HIGH);
   digitalWrite(12, LOW);
 
+  /*////////
+   * Config the load cell amp
+   */////////
+  ADS.InitializeADC();
+  ADS.setPGA(PGA_1);
+  ADS.setMUX(DIFF_0_1);
+  ADS.setDRATE(DRATE_1000SPS);
+
+  Serial.println("Ready to go");
+
   // Start the timers
   start = millis();
   start_micros = micros();
@@ -104,6 +110,7 @@ void setup() {
    *////////
   ADS.sendDirectCommand(SELFCAL);
   sensorsTimer.begin(readSensors, 1000);  // 1000 Hz timer
+  // attachInterrupt(DRDY, dataReadyISR, FALLING);
   
   
 }
@@ -132,32 +139,30 @@ void loop() {
  *////////
 
 void readSensors(){
-  // Collect sensor readings
-  if (!digitalReadFast(DRDY)){
-    long lc_reading = ADS.readSingleContinuous();
+  // put your main code here, to run repeatedly:
+  long lc_reading = lcRead();
+  float enc_reading = encoder1.read();
 
-    float enc_reading = encoder1.read();
+  // Timestampe the sensor readings
+  unsigned long sensors_time = micros();
 
-    // Timestampe the sensor readings
-    unsigned long sensors_time = micros();
+  // Indicate sensor readings
+  Serial.print("S:");
 
-    // Indicate sensor readings
-    Serial.print("S:");
+  // Print the load cell reading
+  Serial.print((ADS.convertToVoltage(lc_reading) + 1.65f) * LC_CAL, 6);
+  Serial.print(",");
 
-    // Print the load cell reading
-    Serial.print((ADS.convertToVoltage(lc_reading) + 1.65f) * LC_CAL, 6);
-    Serial.print(",");
+  // Print the encoder reading
+  Serial.print(enc_reading*1e-3, 3);
+  Serial.print(",");
 
-    // Print the encoder reading
-    Serial.print(enc_reading*1e-3, 3);
-    Serial.print(",");
-
-    // Print the timestamp
-    Serial.println((sensors_time-start_micros)/1000000.0f, 6);
-  }
+  // Print the timestamp
+  Serial.println((sensors_time-start_micros)/1000000.0f, 6);
 }
 
 void commandServo(){
+
 
   if (!started){
     number = (float)CENTER;
@@ -182,4 +187,25 @@ void commandServo(){
   can3.write(tx);
 
 
+}
+
+float lcRead(){
+  // put your main code here, to run repeatedly:
+  SPI1.beginTransaction(SPISettings(1920000, MSBFIRST, SPI_MODE1));
+  digitalWrite(0, LOW);
+  SPI1.transfer(0b00000001); //Issue RDATA (0000 0001) command
+  delayMicroseconds(7);
+
+  outputBuffer[0] = SPI1.transfer(0); // MSB
+  outputBuffer[1] = SPI1.transfer(0); // Mid-byte
+  outputBuffer[2] = SPI1.transfer(0); // LSB    
+
+  //Shifting and combining the above three items into a single, 24-bit number
+  long lc_reading = ((long)outputBuffer[0]<<16) | ((long)outputBuffer[1]<<8) | (outputBuffer[2]);
+
+  digitalWrite(0, HIGH);
+  SPI1.endTransaction(); 
+
+  // sign extension from 24-bit to resolution of long
+  return ((lc_reading) & (1l << 23) ? (lc_reading) - 0x1000000 : lc_reading);
 }
