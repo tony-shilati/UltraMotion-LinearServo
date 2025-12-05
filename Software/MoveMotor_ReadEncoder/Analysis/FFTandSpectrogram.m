@@ -1,8 +1,8 @@
 close all, clear, clc
 
 % Load data from a CSV file
-filename = "Tony_AntiBacklash_0.1_to_35Hz_1kg_20251126_135119.csv";
-path = "outputs/" + filename;
+filename = "UndampedOscillator_0_to_20Hz_ADS1256Direct_10kgLC_20251204_141322.csv";
+path = "../outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
 ticks_font_size = 20; % Font size of the axes
@@ -17,13 +17,15 @@ cmd_time = rmmissing(data(:, 2));
 %cmd_signal=tukeywin(length(cmd_signal), 0.25).*cmd_signal;
 
 % Load Cell
-tel_signal = 100*rmmissing(data(:, 3)); tel_signal = tel_signal - mean(tel_signal);
-tel_time = rmmissing(data(:, 5));
-%tel_signal = lowpass(tel_signal, 30, 1/mean(diff(tel_time)));
+tel_signal = rmmissing(data(2:end, 3)); tel_signal = tel_signal - mean(tel_signal);
+tel_time = rmmissing(data(2:end, 5));
+tel_signal = lowpass(tel_signal, 30, 1/mean(diff(tel_time)));
+tel_signal = highpass(tel_signal, 7, 1/mean(diff(tel_time)));
 
 % Encoder
-enc_signal = rmmissing(data(:, 4));
-enc_time = rmmissing(data(:, 5));
+enc_signal = rmmissing(data(2:end, 4));
+enc_time = rmmissing(data(2:end, 5));
+enc_signal = lowpass(enc_signal, 30, 1/mean(diff(enc_time)));
 
 %% Load the data - GTE
 
@@ -48,19 +50,19 @@ enc_sample_dist = diff(enc_time);
 
 figure(1)
 subplot(3,1,1)
-histogram(cmd_sample_dist * 1000, 5)
+histogram(cmd_sample_dist * 1000, 10)
 ax = gca;ax.FontSize = ticks_font_size;
 title("Command sample period distribution")
 ylabel("Num samples")
 
 subplot(3,1,2)
-histogram(tel_sample_dist * 1000, 5)
+histogram(tel_sample_dist * 1000, 10)
 ax = gca;ax.FontSize = ticks_font_size;
 title("Load Cell sample period distribution")
 ylabel("Num samples")
 
 subplot(3,1,3)
-histogram(enc_sample_dist * 1000, 5)
+histogram(enc_sample_dist * 1000, 10)
 ax = gca;ax.FontSize = ticks_font_size;
 title("Encoder sample period distribution")
 ylabel("Num samples")
@@ -80,7 +82,7 @@ ylabel("Position (mm)", FontSize=labels_font_size)
 yyaxis right
 plot(tel_time, tel_signal, '-', 'Color', [0.8500, 0.3250, 0.0980], "LineWidth", 1.5)
 ylabel("Force (N)", FontSize=labels_font_size)
-ylim([-0.8, 0.8])
+ylim([-50, 50])
 
 grid on
 ax = gca;
@@ -122,13 +124,17 @@ xlabel("Time (s)", FontSize=labels_font_size)
 [P1_tel, f_tel, fs_tel] = normalized_fft(tel_signal, tel_time);
 [P1_enc, f_enc, fs_enc] = normalized_fft(enc_signal, enc_time);
 
+ws_cmd = 2*pi*fs_cmd;
+ws_tel = 2*pi*fs_tel;
+ws_enc = 2*pi*fs_enc;
+
 z_cmd = fftshift(P1_cmd);
 
 figure(4)
 % subplot(2,1,1)
-loglog(f_cmd, P1_cmd, "LineWidth", 1.5), hold on
+loglog(f_cmd, P1_cmd.*ws_cmd, "LineWidth", 1.5), hold on
 loglog(f_tel, P1_tel, "LineWidth", 1.5)
-loglog(f_enc, P1_enc, "LineWidth", 1.5)
+loglog(f_enc, P1_enc.*ws_enc, "LineWidth", 1.5)
 ax = gca; ax.FontSize=ticks_font_size;
 ylabel("Amplitude", FontSize=labels_font_size)
 legend("Commanded", "Load Cell", "Linear Encoder")
