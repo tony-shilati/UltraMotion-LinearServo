@@ -76,11 +76,11 @@ fs = 1/dt(1);
 
 %%
 
-xlims = [0.5, 40];
+xlims = [0.5, 20];
 ax_fs = 16;         % Font size of ticks
 lbl_fs = 18;        % Label font size
 
-alpha = 0.007071; % s time dealy of the 
+alpha = 0;%0.007071; % s time dealy of the 
 jw = (1i*ws);
 
 % Data formatted for plotting
@@ -123,7 +123,7 @@ mag_db = mag2db(squeeze(mag)); phase = squeeze(phase);
 figure(7);%clf
 subplot(3,1,1)
 semilogx(f(f_l:f_u),H1_mag(f_l:f_u),'LineWidth',2); hold on
-semilogx(f,mag_db,'k--','LineWidth',1.5)
+% semilogx(f,mag_db,'k--','LineWidth',1.5)
 % loglog([fm_l, fm_l], [-200, 200], '--k', 'LineWidth', 0.5)
 % loglog([fm_u, fm_u], [-200, 200], '--k', 'LineWidth', 0.5)
 ax = gca; ax.FontSize = ax_fs;
@@ -134,7 +134,7 @@ grid on;
 
 subplot(3,1,2)
 semilogx(f(f_l:f_u),H1_ang(f_l:f_u),'LineWidth',2); hold on
-semilogx(f,phase,'k--','LineWidth',1.5)
+% semilogx(f,phase,'k--','LineWidth',1.5)
 % semilogx([fm_l, fm_l], [-200, 200], '--k', 'LineWidth', 0.5)
 % semilogx([fm_u, fm_u], [-200, 200], '--k', 'LineWidth', 0.5)
 ax = gca; ax.FontSize = ax_fs;
@@ -197,20 +197,20 @@ subplot(3,1,1), hold on
 semilogx(f(f_l:f_u), K_eff(f_l:f_u), 'LineWidth', 1.5)
 ylabel("Effective Stiffness (N/m)")
 grid on
-xlim([10, 20]);
+xlim(xlims);
 
 subplot(3,1,2), hold on
 semilogx(f(f_l:f_u), B_eff(f_l:f_u), 'LineWidth', 1.5)
 ylabel("Effective Damping (Ns/m)")
 grid on
-xlim([10, 20]);
+xlim(xlims);
 
 subplot(3,1,3), hold on
 semilogx(f(f_l:f_u), M_eff(f_l:f_u), 'LineWidth', 1.5)
 ylabel("Effective Mass (kg)")
 xlabel("Frequency (Hz)")
 grid on
-xlim([10, 20]);
+xlim(xlims);
 
 
 %% Nyquist plot
