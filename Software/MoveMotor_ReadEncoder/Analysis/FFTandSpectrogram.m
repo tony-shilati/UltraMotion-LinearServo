@@ -1,8 +1,8 @@
 close all, clear, clc
 
 % Load data from a CSV file
-filename = "UndampedOscillator_0_to_20Hz_ADS1256Direct_10kgLC_20251204_141322.csv";
-path = "../outputs/" + filename;
+filename = "ads1220_5kglc_cal_10kgLC_20251208_222050.csv";
+path = "outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
 ticks_font_size = 20; % Font size of the axes
@@ -19,13 +19,13 @@ cmd_time = rmmissing(data(:, 2));
 % Load Cell
 tel_signal = rmmissing(data(2:end, 3)); tel_signal = tel_signal - mean(tel_signal);
 tel_time = rmmissing(data(2:end, 5));
-tel_signal = lowpass(tel_signal, 30, 1/mean(diff(tel_time)));
-tel_signal = highpass(tel_signal, 7, 1/mean(diff(tel_time)));
+% tel_signal = lowpass(tel_signal, 70, 1/mean(diff(tel_time)));
+% tel_signal = highpass(tel_signal, 7, 1/mean(diff(tel_time)));
 
 % Encoder
 enc_signal = rmmissing(data(2:end, 4));
 enc_time = rmmissing(data(2:end, 5));
-enc_signal = lowpass(enc_signal, 30, 1/mean(diff(enc_time)));
+% enc_signal = lowpass(enc_signal, 30, 1/mean(diff(enc_time)));
 
 %% Load the data - GTE
 
@@ -120,28 +120,41 @@ xlabel("Time (s)", FontSize=labels_font_size)
 
 %% Plot the fft of all three together
 
-[P1_cmd, f_cmd, fs_cmd] = normalized_fft(cmd_signal, cmd_time);
-[P1_tel, f_tel, fs_tel] = normalized_fft(tel_signal, tel_time);
-[P1_enc, f_enc, fs_enc] = normalized_fft(enc_signal, enc_time);
+[P1_cmd, P1_cmd_phase, f_cmd, fs_cmd] = normalized_fft(cmd_signal, cmd_time);
+[P1_tel, P1_tel_phase, f_tel, fs_tel] = normalized_fft(tel_signal, tel_time);
+[P1_enc, P1_enc_phase, f_enc, fs_enc] = normalized_fft(enc_signal, enc_time);
+
+P1_cmd = abs(P1_cmd);
+P1_tel = abs(P1_tel);
+P1_enc = abs(P1_enc);
 
 ws_cmd = 2*pi*fs_cmd;
 ws_tel = 2*pi*fs_tel;
 ws_enc = 2*pi*fs_enc;
 
+xlims = [0.1 40];
+
 z_cmd = fftshift(P1_cmd);
 
 figure(4)
-% subplot(2,1,1)
-loglog(f_cmd, P1_cmd.*ws_cmd, "LineWidth", 1.5), hold on
+subplot(2,1,1)
+loglog(f_cmd, P1_cmd, "LineWidth", 1.5), hold on
+loglog(f_enc, P1_enc, "LineWidth", 1.5)
 loglog(f_tel, P1_tel, "LineWidth", 1.5)
-loglog(f_enc, P1_enc.*ws_enc, "LineWidth", 1.5)
 ax = gca; ax.FontSize=ticks_font_size;
 ylabel("Amplitude", FontSize=labels_font_size)
-legend("Commanded", "Load Cell", "Linear Encoder")
+legend("Commanded", "Linear Encoder", "Load Cell")
 
 grid on
-xlim([0.05, min([0.5*fs_cmd, 0.5*fs_tel, 0.5*fs_enc])])
-ylim([10^-6 5*10^-1])
+xlim(xlims)
+% ylim([10^-6 5*10^-1])
+
+subplot(2,1,2)
+semilogx(f_cmd, P1_cmd_phase, "LineWidth", 1.5), hold on
+semilogx(f_enc, P1_enc_phase, "LineWidth", 1.5), hold on
+semilogx(f_tel, P1_tel_phase, "LineWidth", 1.5), hold on
+xlim(xlims)
+grid on
 
 xlabel("Frequency (Hz)", FontSize=labels_font_size)
 
@@ -205,13 +218,15 @@ ylim([0, 50])
 
 
 %% Define functions
-function [P1, f, Fs] = normalized_fft(signal, time)
+function [P1_mag, P1_phase, f, Fs] = normalized_fft(signal, time)
     Fs = 1 / mean(diff(time)); % Sampling frequency
     L = length(signal); % Length of the signal
     Y = fft(signal); % Compute the FFT
-    P2 = abs(Y/L); % Two-sided spectrum
+    P2 = Y/L; % Two-sided spectrum
     P1 = P2(1:L/2+1); % Single-sided spectrum
     P1(2:end-1) = 2*P1(2:end-1); % Correct the amplitude
+    P1_phase = unwrap(angle(P1))*(180/pi);
+    P1_mag = abs(P1); % Magnitude of the FFT
     f = Fs*(0:(L/2))/L; % Frequency vector
 
 end
