@@ -1,2 +1,5 @@
 .DS_Store
-Software/ReadTelemetryAndFFT/outputs
+**/outputs/
+__pycache__
+*.asv
+*.code-workspace
