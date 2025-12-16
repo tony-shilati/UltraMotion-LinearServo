@@ -16,81 +16,43 @@ pos = rmmissing(D(:,4)) * 10^-3;
 force = -1*rmmissing(D(:,3));
 force = lowpass(force, 30, 1/mean(diff(time)));
 
-figure(6);
-subplot(2,1,1);
-plot(time,pos,'linewidth',2);grid on; hold on;
-subplot(2,1,2)
-plot(time,force,'LineWidth',2);grid on; hold on;
+%% Use modal frf to get the impedance frf
+% win_len = 2^12;
+win_len = 2^10;
+% win_len = 10000;
+fs = 1/mean(diff(time));
 
+[frf, f, coh] = modalfrf(pos, force, fs, hann(win_len), 0.5*win_len, 'Sensor', 'dis');
 
-%% Selecting the "good" data off the initial plot
+frf_unloaded = H1_unloaded(win_len);
+frf = frf - frf_unloaded;
 
-%  G = ginput(2)
-% I1 = floor(G(1,1)/dt(1))
-% I2 = floor(G(2,1)/dt(2))
+ws = f*2*pi;
+jw = (1i*ws);
 
-I1 = 1;
-I2 = length(time);
-
-figure(7);clf
-subplot(2,1,1)
-plot(time(I1:I2),pos(I1:I2),'linewidth',2);grid on; hold on;
-subplot(2,1,2)
-plot(time(I1:I2),force(I1:I2),'LineWidth',2);grid on; hold on;
+frf_mag = mag2db(abs(frf./jw));
+frf_ang = angle(frf./jw)*(180/pi);
 
 
 %%
 
-%   y - output (Nt x No)
-%   u - input (Nt x Ni)
-%   ts - time vector (Nt x 1)
-%   Nblk = number of samples per block - see mimocsd.m
-%   window_name - 'rect', 'hanning' see mimocsd.m
-%   NoPCToverlap - number of samples to overlap or percent of records to
-%       overlap - see mimocsd.m
-%   
-%   H1, H2, Hv - FRF estimate using the named methods
-%   MCOH - Coherence:  ordinary coherence is returned for SISO/SIMO data,
-%       multiple coherence for MIMO or MISO data.
-%   Guu, Gyu, Gyy - Auto/Cross Spectrum matrices returned if desired.
 
-ts = time(I1:I2);
-y = force(I1:I2);
-u = pos(I1:I2);
-
-Nblk = 1000;
-window_name = 'hanning';
-NoPCToverlap = 0.5;
-fs = 1/dt(1);
-
-% figure(8)
-% % [s, f, t] = spectrogram(y, Nblk, floor(Nblk*NoPCToverlap));
-% spectrogram(y, Nblk, floor(Nblk*NoPCToverlap),Nblk*2,fs)
-
-
-[H1,H2,Hv,ws,MCOH1,MCOH2,MCOHv,Guu,Gyu,Gyy] = frfmest(y,u,ts,Nblk,window_name,NoPCToverlap);
-H1u = H1_unloaded(); H1 = H1 - H1u;
-
-%%
-
-xlims = [0.1, 50];
 ax_fs = 16;         % Font size of ticks
 lbl_fs = 18;        % Label font size
 
 alpha = 0.0071; % s time dealy of the 
-jw = (1i*ws);
 
 % Data formatted for plotting
-f = ws/(2*pi); % convert frequency to radians
-H1_mag = squeeze(mag2db(abs(exp(jw*alpha).*H1(1,:)./jw)));
-% H1_mag = squeeze(abs(exp(jw*alpha).*H1(1,:)./jw));
-H1_ang = squeeze(angle(exp(jw*alpha).*H1(1,:)./jw)*(180/pi));
+H1_mag = frf_mag;
+H1_ang = frf_ang;
+MCOH1 = coh;
 
 f_l = 1;   % Lower index limit to be plotted
 f_u = 150;  % Upper index limit to be plotted
 
-fm_l = 0.5; % Lower measured frequency
-fm_u = 20;  % Upper measured frequency
+fm_l = 0.075; % Lower measured frequency
+fm_u = 55;  % Upper measured frequency
+xlims = [fm_l, fm_u];
 
 figure(2);%clf
 subplot(3,1,1)
@@ -128,32 +90,24 @@ xlabel("Frequency (Hz)", "FontSize", 17)
 
 end
 
-function H1u = H1_unloaded()
-path = "outputs/Unloaded_20251121_173617";
+function frf = H1_unloaded(win_len)
+path = "outputs/Unloaded_balljoint_0.1_to_50hz_5kgLC_20251216_125025.csv";
 D = readmatrix(path);
 
 time = rmmissing(D(:,5));
-dt = diff(time);
 
 pos = rmmissing(D(:,4)) * 10^-3;
 force = -1*rmmissing(D(:,3));
 force = lowpass(force, 30, 1/mean(diff(time)));
-I1 = 1;
-I2 = length(time);
 
-ts = time(I1:I2);
-y = force(I1:I2);
-u = pos(I1:I2);
+%% Use modal frf to get the impedance frf
+fs = 1/mean(diff(time));
 
-Nblk = 1000;
-window_name = 'hanning';
-NoPCToverlap = 0.5;
-fs = 1/dt(1);
+[frf, f, coh] = modalfrf(pos, force, fs, hann(win_len), 0.5*win_len, 'Sensor', 'dis');
 
-% figure(8)
-% % [s, f, t] = spectrogram(y, Nblk, floor(Nblk*NoPCToverlap));
-% spectrogram(y, Nblk, floor(Nblk*NoPCToverlap),Nblk*2,fs)
+ws = f*2*pi;
+jw = (1i*ws);
 
-
-[H1u,H2,Hv,ws,MCOH1,MCOH2,MCOHv,Guu,Gyu,Gyy] = frfmest(y,u,ts,Nblk,window_name,NoPCToverlap);
+frf_mag = mag2db(abs(frf./jw));
+frf_ang = angle(frf./jw)*(180/pi);
 end
