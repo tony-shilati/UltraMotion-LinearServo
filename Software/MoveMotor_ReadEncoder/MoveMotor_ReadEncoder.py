@@ -31,7 +31,7 @@ INACTIVITY_TIMEOUT = 5.0  # seconds
 # Conversion factors
 LOADCELL_CONVERSION =  1 # 0.0012
 SERVO_CONVERSION = 5.782369e-4  # mm/ticks
-LC_RATING = 10      #kg
+LC_RATING = 5      #kg
 
 
 def find_teensy_port():
