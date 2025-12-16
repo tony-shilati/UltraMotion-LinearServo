@@ -1,7 +1,7 @@
 close all, clear, clc
 
 % Load data from a CSV file
-filename = "ads1220_5kglc_cal_10kgLC_20251208_222050.csv";
+filename = "Undamped_Oscillator_ADS1220_0.1_to_40Hz_5kgLC_20251215_133907.csv";
 path = "outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
@@ -19,7 +19,7 @@ cmd_time = rmmissing(data(:, 2));
 % Load Cell
 tel_signal = rmmissing(data(2:end, 3)); tel_signal = tel_signal - mean(tel_signal);
 tel_time = rmmissing(data(2:end, 5));
-% tel_signal = lowpass(tel_signal, 70, 1/mean(diff(tel_time)));
+tel_signal = lowpass(tel_signal, 50, 1/mean(diff(tel_time)));
 % tel_signal = highpass(tel_signal, 7, 1/mean(diff(tel_time)));
 
 % Encoder
@@ -73,16 +73,16 @@ xlabel("Sample Period (ms)")
 %% Plot the three signals together
 
 figure(2)
-yyaxis left
+% yyaxis left
 plot(cmd_time, cmd_signal, '-','Color', [0, 0.4470, 0.7410], "LineWidth", 2), hold on
 plot(enc_time, enc_signal, '-', 'Color', [0, 0.5, 0], "LineWidth", 2)
 ax = gca; ax.FontSize = ticks_font_size;
-ylabel("Position (mm)", FontSize=labels_font_size)
+ylabel("Encoder Position (mm)", FontSize=labels_font_size)
 
 yyaxis right
 plot(tel_time, tel_signal, '-', 'Color', [0.8500, 0.3250, 0.0980], "LineWidth", 1.5)
 ylabel("Force (N)", FontSize=labels_font_size)
-ylim([-50, 50])
+% ylim([-50, 50])
 
 grid on
 ax = gca;
@@ -204,16 +204,17 @@ ylim([0, 50])
 subplot(3,1,3)
 es_len = length(enc_signal);
 s = spectrogram(enc_signal, ceil(es_len/29), ...
-    ceil(es_len/30), ceil(es_len/29), fs_enc, 'yaxis');
+    ceil(es_len/30), ceil(es_len/29), 2*pi*fs_enc, 'yaxis');
+
 spectrogram(enc_signal, ceil(es_len/29), ceil(es_len/30), ceil(es_len/29), fs_enc, 'yaxis');
 
 title('Spectrogram of Encoder');
-xlabel('Time (s)');
+xlabel('Time (min)');
 ylabel('Frequency (Hz)');
 colorbar;
 colors = clim;
 clim([colors(2) - 60, colors(2)])
-ylim([0, 50])
+ylim([0, 70])
 
 
 
