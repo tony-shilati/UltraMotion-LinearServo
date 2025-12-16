@@ -1,7 +1,7 @@
 %% reading in the time domain data and plotting it
 clc,clear
 
-filename = "Undamped_Oscillator_ADS1220_0.1_to_40Hz_5kgLC_20251215_133907.csv";
+filename = "Luke_Robot_Finger_0.1_to_50Hz_5kgLC_20251216_131444.csv";
 path = "outputs/" + filename;
 D = readmatrix(path);
 
@@ -15,18 +15,24 @@ time = rmmissing(D(:,5));
 dt = diff(time);
 
 pos = rmmissing(D(:,4)) * 1e-3;
-pos = lowpass(pos, 60, 1/mean(diff(time)));
+pos = lowpass(pos, 40, 1/mean(diff(time)));
 
 force = rmmissing(D(:,3))*-1;
-force = lowpass(force, 60, 1/mean(diff(time)));
+force = lowpass(force, 40, 1/mean(diff(time)));
 
 
 %% Use modal frf to get the impedance frf
-% win_len = 2^14;
-win_len = 10000;
+% win_len = 2^12;
+win_len = 2^10;
+% win_len = 10000;
 fs = 1/mean(diff(time));
 
 [frf, f, coh] = modalfrf(pos, force, fs, hann(win_len), 0.5*win_len, 'Sensor', 'dis');
+
+%%%%%%%%%% Subtract out the unloaded response
+frf_unloaded = H1_unloaded(win_len);
+frf = frf - frf_unloaded;
+%%%%%%%%%%
 
 ws = f*2*pi;
 jw = (1i*ws);
@@ -44,7 +50,7 @@ f_l = 1;   % Lower index limit to be plotted
 f_u = length(frf_mag);  % Upper index limit to be plotted
 
 fm_l = 0.1; % Lower measured frequency
-fm_u = 45;  % Upper measured frequency
+fm_u = 55;  % Upper measured frequency
 
 xlims = [fm_l, fm_u];
 
@@ -52,6 +58,10 @@ xlims = [fm_l, fm_u];
 % m = 0.0825;        % Lukes robot finger 
 % k = 320;
 % b = 1.8;
+
+m = 0.015;        % Lukes robot finger on new system
+k = 423;
+b = 0.8;
 
 % m = 0.065;      % Lukes actual finger
 % k = 185;
@@ -62,9 +72,13 @@ xlims = [fm_l, fm_u];
 % k = 0;
 % b = 0;
 
-m = 0.05197;        % Mass-Spring System 
-k = 215;
-b = 0;
+% m = 0.05197;        % Mass-Spring System 
+% k = 215;
+% b = 0;
+
+% m = 0.02724;        % Ball joint
+% k = 0;
+% b = 0;
 
 sys = tf([m, b, k], [1, 0]);
 [mag, phase] = bode(sys, ws);
@@ -171,3 +185,26 @@ axis equal
 % axis([-a, a, -a, a])
 
 
+
+%% Function for subtracting out unloaded response
+function frf = H1_unloaded(win_len)
+path = "outputs/Unloaded_balljoint_0.1_to_50hz_5kgLC_20251216_125025.csv";
+D = readmatrix(path);
+
+time = rmmissing(D(:,5));
+
+pos = rmmissing(D(:,4)) * 10^-3;
+force = -1*rmmissing(D(:,3));
+force = lowpass(force, 30, 1/mean(diff(time)));
+
+%% Use modal frf to get the impedance frf
+fs = 1/mean(diff(time));
+
+[frf, f, coh] = modalfrf(pos, force, fs, hann(win_len), 0.5*win_len, 'Sensor', 'dis');
+
+ws = f*2*pi;
+jw = (1i*ws);
+
+frf_mag = mag2db(abs(frf./jw));
+frf_ang = angle(frf./jw)*(180/pi);
+end
