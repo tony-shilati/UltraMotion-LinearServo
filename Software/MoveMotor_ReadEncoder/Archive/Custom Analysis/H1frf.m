@@ -1,7 +1,7 @@
 % clc,clear
 
 %% Reading in the time domain data and plotting it
-filename = "LukesFinger_0.1-20Hz_Fingernail_Attachment_20251121_124718.csv";
+filename = "Undamped_Oscillator_ADS1220_0.1_to_40Hz_5kgLC_20251215_133907.csv";
 path = "outputs/" + filename;
 D = readmatrix(path);
 
