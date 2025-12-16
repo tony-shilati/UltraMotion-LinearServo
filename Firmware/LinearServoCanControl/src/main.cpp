@@ -4,15 +4,15 @@
 #include <SPI.h>
 
 
-#define FREQUENCY_1 0.10f                 // Hz
-#define FREQUENCY_2 20.0f                 // Hz
+#define FREQUENCY_1 0.1f                 // Hz
+#define FREQUENCY_2 40.0f                 // Hz
 #define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
 #define INITIAL_AMPLITUDE 1.75f            // mm
-#define FINAL_AMPLITUDE 0.25f             // mm
-#define SWEEP_LENGTH 120.0f                // s
+#define FINAL_AMPLITUDE 0.20f             // mm
+#define SWEEP_LENGTH 380.0f                // s
 
-#define LC_CAL 0.00002076f                     // N/tick
+#define LC_CAL 0.0000165527f                     // N/tick
 
 #define SPI_BAUDRATE 6000000
 
@@ -169,7 +169,7 @@ void readSensors(){   // Total loop time with prints is 29 microseconds
   Serial.print(",");
 
   // Print the encoder reading
-  Serial.print(1.0f);//Serial.print(enc_reading*1e-3, 3);
+  Serial.print(enc_reading*1e-3, 3);
   Serial.print(",");
 
   // Print the timestamp
@@ -189,7 +189,7 @@ void commandServo(){ // Total loop time with prints is 25.7 microseconds
       number = (uint16_t)roundf(value);
 
     Serial.print("G:");
-    Serial.print(1.0f);//Serial.print(number);
+    Serial.print(number);
     Serial.print(",");
     Serial.println((micros() - start_micros)/1000000.0f, 6);
   }
