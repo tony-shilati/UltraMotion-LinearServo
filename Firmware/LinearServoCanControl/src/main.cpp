@@ -3,17 +3,8 @@
 #include <QuadEncoder.h>
 #include <SPI.h>
 
-
-#define FREQUENCY_1 0.1f                 // Hz
-#define FREQUENCY_2 40.0f                 // Hz
-#define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
-#define INITIAL_AMPLITUDE 1.75f            // mm
-#define FINAL_AMPLITUDE 0.20f             // mm
-#define SWEEP_LENGTH 380.0f                // s
-
 #define LC_CAL 0.0000165527f                     // N/tick
-
 #define SPI_BAUDRATE 6000000
 
 #define CS1 0
@@ -37,11 +28,11 @@ uint16_t          number;
 unsigned long     start;
 unsigned long     start_micros;
 bool started = false;
-float tau_inv = -log(FINAL_AMPLITUDE/INITIAL_AMPLITUDE) / SWEEP_LENGTH; // Inverse time constant of exponential decay
 byte outputBuffer[3];
-
 long lc_sum = 0;
 uint16_t lc_index = 0;
+
+uint16_t * waveform = new uint16_t[420*1000];
 
 /*////////
  * Function Prototypes
@@ -221,4 +212,8 @@ int32_t lcRead(){
   }
 
   return adc;
+}
+
+void loadWaveform(uint16_t * waveform){
+
 }

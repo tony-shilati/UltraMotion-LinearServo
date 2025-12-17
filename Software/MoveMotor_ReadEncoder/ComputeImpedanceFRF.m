@@ -1,7 +1,7 @@
 %% reading in the time domain data and plotting it
 clc,clear
 
-filename = "Undamped_Oscillator_ADS1220_0.1_to_40Hz_5kgLC_20251215_133907.csv";
+filename = "Luke_Robot_Finger_0.1_to_50Hz_5kgLC_20251216_131444.csv";
 path = "outputs/" + filename;
 D = readmatrix(path);
 
@@ -23,10 +23,13 @@ force = lowpass(force, 60, 1/mean(diff(time)));
 
 %% Use modal frf to get the impedance frf
 % win_len = 2^14;
-win_len = 10000;
+win_len = 2^10;
 fs = 1/mean(diff(time));
 
 [frf, f, coh] = modalfrf(pos, force, fs, hann(win_len), 0.5*win_len, 'Sensor', 'dis');
+
+frf_unloaded = H1_unloaded(win_len);
+frf = frf - frf_unloaded;
 
 ws = f*2*pi;
 jw = (1i*ws);
@@ -169,5 +172,28 @@ grid on
 axis equal
 % a = 0.4;
 % axis([-a, a, -a, a])
+
+
+function frf = H1_unloaded(win_len)
+path = "outputs/Unloaded_balljoint_0.1_to_50hz_5kgLC_20251216_125025.csv";
+D = readmatrix(path);
+
+time = rmmissing(D(:,5));
+
+pos = rmmissing(D(:,4)) * 10^-3;
+force = -1*rmmissing(D(:,3));
+force = lowpass(force, 30, 1/mean(diff(time)));
+
+%% Use modal frf to get the impedance frf
+fs = 1/mean(diff(time));
+
+[frf, f, coh] = modalfrf(pos, force, fs, hann(win_len), 0.5*win_len, 'Sensor', 'dis');
+
+ws = f*2*pi;
+jw = (1i*ws);
+
+frf_mag = mag2db(abs(frf./jw));
+frf_ang = angle(frf./jw)*(180/pi);
+end
 
 
