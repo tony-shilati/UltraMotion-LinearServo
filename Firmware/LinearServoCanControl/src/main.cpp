@@ -31,6 +31,7 @@ bool started = false;
 byte outputBuffer[3];
 long lc_sum = 0;
 uint16_t lc_index = 0;
+uint16_t signal_length = 0;
 
 uint16_t * waveform = new uint16_t[420*1000];
 
@@ -40,6 +41,7 @@ uint16_t * waveform = new uint16_t[420*1000];
 void readSensors();
 void printMessage(const CAN_message_t &m);
 void commandServo();
+uint16_t loadWaveform(uint16_t &waveform);
 int32_t lcRead();
 
 
@@ -52,6 +54,11 @@ void setup() {
   while (!Serial) {
     delay(10);
   }
+
+  /*////////
+   * Config the linear servo comms
+   *////////
+  loadWaveform(*waveform);
   
   /*////////
    * Config the linear servo comms
@@ -127,7 +134,7 @@ void setup() {
  * Main Loop
  *////////
 void loop() {
-  if ((millis() - start) > SWEEP_LENGTH * 1000){
+  if ((millis() - start) > signal_length * 1000){
     noInterrupts();
     delay(3000);
 
@@ -174,11 +181,6 @@ void commandServo(){ // Total loop time with prints is 25.7 microseconds
     number = (float)CENTER;
   } else {
 
-    float t = (millis() - start) / 1000.0f; // seconds
-    float value = CENTER + INITIAL_AMPLITUDE_TICKS * exp(-t*tau_inv) *
-      sinf(2.0f * PI * FREQUENCY_1 * SWEEP_LENGTH * ((pow(FREQUENCY_2/FREQUENCY_1, t/SWEEP_LENGTH) - 1) / (log(FREQUENCY_2/FREQUENCY_1))));
-      number = (uint16_t)roundf(value);
-
     Serial.print("G:");
     Serial.print(number);
     Serial.print(",");
@@ -214,6 +216,19 @@ int32_t lcRead(){
   return adc;
 }
 
-void loadWaveform(uint16_t * waveform){
+uint16_t loadWaveform(uint16_t &waveform){
+  uint16_t loading_index = 0;
+
+  // Handshake with the computer
+  Serial.println("Ready_Load");
+
+  // Read and load the waveform into an array
+  while (Serial.available() >= 2) {
+    uint16_t value = Serial.read() | (Serial.read() << 8);
+    waveform[loading_index++] = value;
+  }
+
+  // Return waveform length
+  return loading_index;
 
 }
