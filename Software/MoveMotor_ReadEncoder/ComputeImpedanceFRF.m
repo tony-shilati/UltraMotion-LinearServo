@@ -1,7 +1,7 @@
 %% reading in the time domain data and plotting it
 clc,clear
 
-filename = "Luke_Robot_Finger_0.1_to_50Hz_5kgLC_20251216_131444.csv";
+filename = "Undamped_Oscillator_ADS1220_0.1_to_40Hz_5kgLC_20251215_133907.csv";
 path = "outputs/" + filename;
 D = readmatrix(path);
 
@@ -15,10 +15,10 @@ time = rmmissing(D(:,5));
 dt = diff(time);
 
 pos = rmmissing(D(:,4)) * 1e-3;
-pos = lowpass(pos, 40, 1/mean(diff(time)));
+% pos = lowpass(pos, 70, 1/mean(diff(time)));
 
 force = rmmissing(D(:,3))*-1;
-force = lowpass(force, 40, 1/mean(diff(time)));
+% force = lowpass(force, 70, 1/mean(diff(time)));
 
 
 %% Use modal frf to get the impedance frf
@@ -30,8 +30,8 @@ fs = 1/mean(diff(time));
 [frf, f, coh] = modalfrf(pos, force, fs, hann(win_len), 0.5*win_len, 'Sensor', 'dis');
 
 %%%%%%%%%% Subtract out the unloaded response
-frf_unloaded = H1_unloaded(win_len);
-frf = frf - frf_unloaded;
+% frf_unloaded = H1_unloaded(win_len);
+% frf = frf - frf_unloaded;
 %%%%%%%%%%
 
 ws = f*2*pi;

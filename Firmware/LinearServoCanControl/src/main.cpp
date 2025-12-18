@@ -9,7 +9,7 @@
 #define INITIAL_AMPLITUDE_TICKS 2595.0f   // ticks
 #define CENTER 8212                       // ticks
 #define INITIAL_AMPLITUDE 1.75f            // mm
-#define FINAL_AMPLITUDE 0.07f             // mm
+#define FINAL_AMPLITUDE 0.2f             // mm
 #define SWEEP_LENGTH 380.0f                // s
 
 #define LC_CAL 0.0000165527f                     // N/tick

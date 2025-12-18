@@ -1,7 +1,7 @@
 close all, clear, clc
 
 % Load data from a CSV file
-filename = "Luke_Robot_Finger_0.1_to_50Hz_5kgLC_20251216_131444.csv";
+filename = "Luke_Actual_Finger_0.1_to_50Hz_5kgLC_20251217_103447.csv";
 path = "outputs/" + filename;
 data = readmatrix(path); % Replace 'your_file.csv' with your actual file name
 
